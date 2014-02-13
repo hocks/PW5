@@ -1,0 +1,267 @@
+#!/usr/bin/ksh
+# IBM_PROLOG_BEGIN_TAG 
+# This is an automatically generated prolog. 
+#  
+#  
+#  
+# IBM CONFIDENTIAL 
+#  
+# OBJECT CODE ONLY SOURCE MATERIALS 
+#  
+# (C) COPYRIGHT International Business Machines Corp. 2003 
+# All Rights Reserved 
+#  
+# The source code for this program is not published or otherwise 
+# divested of its trade secrets, irrespective of what has been 
+# deposited with the U.S. Copyright Office. 
+#  
+# IBM_PROLOG_END_TAG 
+
+################################################################################################
+##                                                                                            ##
+## UT_ping_all2all: User Space Ping All to All.                                               ##
+##                                                                                            ##
+## Usage: UT_ping_all2all <master_index> <slave_index> <num_sni> wcoll_file [opt_params]      ##
+##            example:  UT_ping_all2all 0 1 4 /tmp/.my_wcoll_file                             ##
+##                                                                                            ##
+##        By default this scripts looks for the following three four binaries in the          ##
+##        directory "/colony/CSS/stevenjm/fed/bin". This path can be overridden by            ##
+##        setting and exporting a BINDIR environment variable.                                ##
+##                                                                                            ##
+## Test Binaries:                                                                             ##
+##        UT_qry                                                                              ##
+##        UT_push_remote                                                                      ##
+##        UT_ping                                                                             ##
+##        fed_ntbl_loader_util                                                                ##
+##                                                                                            ##
+## Change History:                                                                            ##
+##     Defect #100902 -- stevenjm: Initial Checkin.                                           ##
+##                                                                                            ##
+################################################################################################
+
+TEST_SCRIPT_REV="@(#) 1.2 src/css/fed/dd/can/US_ping_all2all, fed.dd, css_rc11 03/11/21 14:10:57";
+
+export AIXTHREAD_SCOPE=S
+#BINDIR=${BINDIR:-"/colony/CSS/stevenjm/fed/bin"};
+BINDIR=${BINDIR:-"/usrtools/stevem"};
+PROG_LIST="UT_qry UT_push_remote UT_ping";
+
+usage() {
+        print "USAGE: $0 <master_index> <slave_index> <num_sni> wcoll_file [opt_params]";
+}
+
+check_progs() {
+	for prog_name in $PROG_LIST
+		do
+	print "checking: $prog_name";
+		if( test -x ${BINDIR}/$prog_name )
+			then
+				print "No Execute permission: ${BINDIR}/$prog_name";
+				exit -1;
+		fi
+	done
+}
+
+##
+## test_args:
+##
+test_args() {
+
+	# Check the master_index range:
+	if( test $MI -gt 63 )
+		then
+			print "master_index: $MI, is out of range.";
+			print "valid range: 0-63";
+			exit -1;
+	fi
+	
+	# Check the slave_index range:
+	if( test $SI -gt 63 )
+		then
+			print "slave_index: $SI, is out of range.";
+			print "valid range: 0-63";
+			exit -1;
+	fi
+			
+	# Check that master_index != slave_index:
+	if( test $MI -eq $SI )
+		then
+			print "master_index == slave_index";
+			exit -1;
+	fi
+
+	# Check the num_sni is in range:
+	if( test $NSNI -gt 8 )
+		then
+			print "num_sni: $NSNI, is out of range.";
+			print "valid range: 1-8";
+			exit -1;
+	fi
+
+	# Check the WCOLL file:
+	if( test ! -r ${WCOLL} )
+		then
+			print "Can Not read: ${WCOLL}";
+			exit -1;
+	fi
+
+			
+	print "User Inputs:";
+	print "master_index .....: ${MI}";
+	print "slave_index ......: ${SI}";
+	print "slave_index ......: ${SI}";
+	print "num_sni ..........: ${NSNI}";
+	print "wcoll_file .......: ${WCOLL}";
+}
+
+##
+## start_slaves:
+##
+start_slaves() {
+	print "";
+	print "Starting Slaves:"
+	for sni in ${SNI_LIST}
+	do
+		print -n ".";
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $SI -c1 -S9" 2>/dev/null
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $SI -c1 -U" 2>/dev/null
+		dsh "${BINDIR}/UT_ping -l $sni -s $SI | grep -v Opening | grep -v termination" 2>/dev/null &
+		sleep 1;
+	done
+	print "";
+	print "";
+}
+
+##
+## stop_slaves:
+##
+stop_slaves() {
+	print "";
+	print "Stopping Slaves:"
+	for sni in ${SNI_LIST}
+	do
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $SI -c1 -S2" 2>/dev/null
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $SI -c1 -U" 2>/dev/null
+	done
+}
+
+##
+## set_test_channel:
+##
+set_test_channel() {
+TC=`bc << HERE
+2472 + (${SI} *2)
+HERE
+`
+}
+
+##
+## build_sni_list:
+##
+build_sni_list() {
+	SNI_LIST=""
+	X=0;
+	while $(test $X -lt $NSNI)
+	do
+		SNI_LIST="${SNI_LIST} sni${X} ";
+		let X=${X}+1;
+	done
+}
+
+##
+## build_lid_list:
+##
+build_lid_list() {
+	LID_LIST="";
+	for sni in ${SNI_LIST}
+	do
+		print -n ".";
+		LIDS=$( dsh "${BINDIR}/UT_qry -l $sni | grep lid | grep -v sis_lid" 2>/dev/null | awk '{print $3}');
+		LID_LIST="$LID_LIST $LIDS";
+	done
+	print "";
+	print -n "LID_LIST .........: ";
+	for lid in ${LID_LIST}
+	do
+		print -n "${lid} ";
+	done
+	print "";
+}
+
+##
+## loopback_mode_test:
+##
+loopback_mode_test() {
+	for sni in ${SNI_LIST}
+	do
+		print "Testing $sni adapters loopback mode:";
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $MI -c1 -S9" 2>/dev/null
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -s $MI -c1 -U" 2>/dev/null
+		dsh "${BINDIR}/UT_push_remote -l $sni -s $MI -P ${OPT_ARGS} " 2>/dev/null  | grep "SRC_LID";
+		print "";
+	done
+}
+
+##
+## point_to_point_test:
+##
+point_to_point_test() {
+	print "";
+	print "Testing adapters point to point:";
+	print "";
+	for sni in ${SNI_LIST}
+	do
+		print "Source adapter ...: $sni";
+		for lid in ${LID_LIST}
+		do
+			for n in $(cat ${WCOLL} | grep -v "^#")
+			do
+				dsh -w ${n} "${BINDIR}/UT_push_remote -l$sni -s$MI -C$TC -L$lid -P ${OPT_ARGS} |\
+				 grep SRC_LID" 2>/dev/null
+			done
+			print "";
+	
+		done
+	done
+}
+
+###
+### Start of Program!
+###
+
+if( test $# -lt 4 )
+        then
+                usage;
+                exit -1 ;
+fi
+
+MI=$1;
+shift;
+SI=$1;
+shift;
+NSNI=$1;
+shift;
+WCOLL=$1;
+shift;
+OPT_ARGS=$*
+
+test_args;
+set_test_channel
+build_sni_list
+
+
+print "Environment variable(s):"
+print "BINDIR ...........: ${BINDIR}";
+
+print "Internal variables:"
+print "TEST_SCRIPT_REV ..: ${TEST_SCRIPT_REV}";
+print "Target Channel ...: ${TC}";
+print "Testing SNI's ....:${SNI_LIST}";
+
+build_lid_list
+start_slaves;
+loopback_mode_test;
+point_to_point_test;
+stop_slaves;
+
+

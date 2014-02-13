@@ -1,0 +1,13 @@
+
+US_ping_all2all: 
+	example: BINDIR=/usrtools/stevem US_ping_all2all 0 1 2 /tmp/.wcoll_list
+
+	The above sets BINDIR=/usrtools/stevem,
+                       master_index = 0,
+                       slave_index  = 1,
+                       num_sni      = 2, (Test sni0 and sni1)
+                       wcoll_file   = /tmp/.wcoll_list (replace with something valid!)
+
+Any Problems give me a call!
+-- stevenjm@us.ibm.com
+

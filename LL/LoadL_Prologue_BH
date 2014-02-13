@@ -1,0 +1,18 @@
+#!/bin/ksh
+#
+#
+# LoadLeveler Prologue
+#
+#
+# This prologue script runs as the loadl user.
+#
+#
+
+#if [[ $LOADL_STEP_OWNER = uxduff ]]
+#then
+## echo "testing from $0 with owner $LOADL_STEP_OWNER" | mail uxduff@sdsc.edu
+#/usr/lpp/mmfs/bin/mmtrace 
+#fi
+
+
+exit 0

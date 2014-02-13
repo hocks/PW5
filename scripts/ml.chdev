@@ -1,0 +1,11 @@
+#!/usr/bin/ksh
+
+HN=`hostname -s`
+
+IP=`lsattr -Elml0|grep netaddr|awk '{ print $2 }'`
+IPN=${IP#*82.}
+echo "$HN is $IP will change to 192.67.81.$IPN"
+
+chdev -l 'ml0' -a netaddr=192.67.81.$IPN -a state='up'
+
+

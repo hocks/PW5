@@ -1,0 +1,15 @@
+#!/bin/ksh
+#
+# LoadLeveler Prologue
+#
+# This prologue script runs as the loadl user.
+#
+export TZ=PST8PDT
+#
+if [[ $LOADL_STEP_OWNER = diegella ]] ; then
+    (set -xv ; /bin/date ; /bin/whoami ; /bin/who am i ; /bin/id  ; /bin/env | /bin/sort ; /bin/ps -ef ; /usr/local/bin/ps.longest ; df -kv ; set +xv ) | \
+	/bin/mailx -s "LoadL Prologue $LOADL_STEP_OWNER `/bin/hostname`" diegella@sdsc.edu
+### /usr/lpp/mmfs/bin/mmtrace 
+fi
+#
+exit 0

@@ -1,0 +1,260 @@
+#/bin/ksh
+
+host=`/bin/hostname | awk -F\. '{print $1}'`
+
+#Cec 1
+if [ "$host" = "emagenta001" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.1 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.1 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.1 netmask 255.255.255.0
+fi
+#Cec 2
+if [ "$host" = "emagenta002" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.2 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.2 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.2 netmask 255.255.255.0
+fi
+#Cec 3
+if [ "$host" = "emagenta003" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.3 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.3 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.3 netmask 255.255.255.0
+fi
+#Cec 4
+if [ "$host" = "emagenta004" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.4 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.4 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.4 netmask 255.255.255.0
+fi
+#Cec 5
+if [ "$host" = "emagenta005" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.5 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.5 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.5 netmask 255.255.255.0
+fi
+#Cec 6
+if [ "$host" = "emagenta006" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.6 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.6 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.6 netmask 255.255.255.0
+fi
+#Cec 7
+if [ "$host" = "emagenta007" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.7 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.7 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.7 netmask 255.255.255.0
+fi
+#Cec 8
+if [ "$host" = "emagenta008" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.8 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.8 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.8 netmask 255.255.255.0
+fi
+#Cec 9
+if [ "$host" = "emagenta009" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.9 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.9 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.9 netmask 255.255.255.0
+fi
+#Cec 10
+if [ "$host" = "emagenta010" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.10 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.10 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.10 netmask 255.255.255.0
+fi
+#Cec 11
+if [ "$host" = "emagenta011" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.11 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.11 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.11 netmask 255.255.255.0
+fi
+#Cec 12
+if [ "$host" = "emagenta012" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.12 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.12 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.12 netmask 255.255.255.0
+fi
+#Cec 13
+if [ "$host" = "emagenta013" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.13 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.13 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.13 netmask 255.255.255.0
+fi
+#Cec 14
+if [ "$host" = "emagenta014" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.14 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.14 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.14 netmask 255.255.255.0
+fi
+#Cec 15
+if [ "$host" = "emagenta015" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.15 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.15 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.15 netmask 255.255.255.0
+fi
+#Cec 16
+if [ "$host" = "emagenta016" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.16 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.16 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.16 netmask 255.255.255.0
+fi
+#Cec 17
+if [ "$host" = "emagenta017" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.17 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.17 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.17 netmask 255.255.255.0
+fi
+#Cec 18
+if [ "$host" = "emagenta018" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.18 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.18 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.18 netmask 255.255.255.0
+fi
+#Cec 19
+if [ "$host" = "emagenta019" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.19 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.19 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.19 netmask 255.255.255.0
+fi
+#Cec 20
+if [ "$host" = "emagenta020" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.20 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.20 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.20 netmask 255.255.255.0
+fi
+#Cec 21
+if [ "$host" = "emagenta021" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.21 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.21 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.21 netmask 255.255.255.0
+fi
+#Cec 22
+if [ "$host" = "emagenta022" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.22 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.22 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.22 netmask 255.255.255.0
+fi
+#Cec 23
+if [ "$host" = "emagenta023" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.23 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.23 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.23 netmask 255.255.255.0
+fi
+#Cec 24
+if [ "$host" = "emagenta024" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.24 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.24 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.24 netmask 255.255.255.0
+fi
+#Cec 25
+if [ "$host" = "emagenta025" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.25 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.25 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.25 netmask 255.255.255.0
+fi
+#Cec 26
+if [ "$host" = "emagenta026" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.26 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.26 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.26 netmask 255.255.255.0
+fi
+#Cec 27
+if [ "$host" = "emagenta027" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.27 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.27 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.27 netmask 255.255.255.0
+fi
+#Cec 28
+if [ "$host" = "emagenta028" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.28 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.28 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.28 netmask 255.255.255.0
+fi
+#Cec 29
+if [ "$host" = "emagenta029" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.29 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.29 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.29 netmask 255.255.255.0
+fi
+#Cec 30
+if [ "$host" = "emagenta030" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.30 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.30 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.30 netmask 255.255.255.0
+fi
+#Cec 31
+if [ "$host" = "emagenta031" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.31 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.31 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.31 netmask 255.255.255.0
+fi
+#Cec 32
+if [ "$host" = "emagenta032" ]
+then
+    echo " Configuring sn0,sn1,ml0 for $host "
+    ifconfig sn0 inet 134.9.65.32 netmask 255.255.255.0
+    ifconfig sn1 inet 134.9.66.32 netmask 255.255.255.0
+    ifconfig ml0 inet 134.9.64.32 netmask 255.255.255.0
+fi

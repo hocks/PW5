@@ -1,0 +1,121 @@
+#!/usr/bin/perl
+while (<>) {
+	chomp;
+	($host, $x, $y, $mode, $links, $owner, $group, $size, $mon, $day, $time, $path) = split(/\s+/, $_, 12);
+
+	$host =~ s/:$//;
+	$setuid = $mode =~ /^...s/i;
+	$setgid = $mode =~ /^......s/i;
+	$setuid or $owner = "($owner)";
+	$setgid or $group = "($group)";
+	$bypath{$path}{$owner}{$group}{$mode}{$host}++;
+}
+
+$, = "\t";
+$\ = "\n";
+
+print <<EOF;
+<html><head></head><body>
+<h1>List of setuid/setgid programs</h1>
+<p>
+Lines in yellow are setuid root.
+<p>
+User and group names in parentheses means that the file is not setuid/setgid
+to that user or group.   E.g.  "root" in the "User" column means the file is
+setuid root, "(root)" means the file is not setuid root, but it setgid
+to something
+<p>
+<table border>
+<tr>
+	<td> Path </td>
+	<td> User </td>
+	<td> Group </td>
+	<td nowrap> Mode </td>
+	<td> Count </td>
+	<td> Hosts </td>
+</tr>
+EOF
+
+foreach $path (sort keys %bypath) {
+	foreach $owner (sort keys %{$bypath{$path}}) {
+		foreach $group (sort keys %{$bypath{$path}{$owner}}) {
+			foreach $mode (sort keys %{$bypath{$path}{$owner}{$group}}) {
+				@hosts = keys %{$bypath{$path}{$owner}{$group}{$mode}};
+				$hostcount = @hosts;
+				$hosts = join(', ', compresshosts(@hosts));
+				if ($owner eq 'root' or $owner eq '0' or $group eq 'root' or $group eq '0') {
+					$color = 'bgcolor="yellow"';
+				} else {
+					$color = '';
+				}
+				print "<tr $color><td valign=top nowrap>", join("</td><td valign=top nowrap>", $path, $owner, $group, $mode, $hostcount), "<td valign=top> $hosts </td></tr>";
+			}
+		}
+	}
+}
+print "</table>";
+
+sub compresshosts {
+	my (@h) = sort @_;
+
+	my $x, $h, $last, $n, $lastn, $startn, $i, @c, @n;
+
+	$last = $h[0];
+	($lastn = $last) =~ s/^ds//;
+	$startn = $lastn;
+	@c = (); @n = ();
+	$i = 0;
+	while ($i < @h) {
+		$h = $h[$i];
+		last if ($h =~ /^ds(\d+)/);
+		push(@n, $h);
+		$i = $i + 1;
+	}
+	if ($i >= @h) {
+		return @n;
+	}
+	while ($i < @h) {
+		$h = $h[$i];
+		last unless ($h =~ /^ds(\d+)/);
+		$lastn = $startn = $1;
+		while (1) {
+			$i += 1;
+			$h = $h[$i];
+			unless ($h =~ /^ds(\d+)/) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$n = $1;
+			if ($n > ($lastn + 1)) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$lastn = $n;
+		}
+	}
+	push(@n, @c);
+	@n;
+}
+
+sub hostrange {
+
+	my($a, $b) = @_;
+
+	if ($a == $b) {
+		return sprintf("ds%3.3d", $a);
+	}
+		return sprintf("ds%3.3d-%3.3d", $a, $b);
+}
+
+
+__END__
+ds001:  9918   88 -r-sr-xr-x  1 root     system      87650 Sep  2 03:39 /sbin/helpers/jfs2/backbyinode
+ds001:  9927   44 -r-sr-x---  1 root     adm         44950 Sep  2 03:49 /sbin/helpers/jfs2/diskusg
+ds001:  9944   84 -r-sr-xr-x  1 root     system      83510 Sep  2 03:39 /sbin/helpers/jfs2/restbyinode
+ds001:    65  296 -r-sr-s---  1 188      188        301226 Sep 12  2002 /usr/IMNSearch/bin/imnss
+ds001:    66    4 -r-sr-s---  1 188      188           476 Sep 13  2002 /usr/IMNSearch/bin/imq_env
+ds001:    67    4 -r-sr-s---  1 188      188           582 Sep 13  2002 /usr/IMNSearch/bin/imq_start
+ds001:    70  244 -r-sr-s---  1 188      188        249070 Sep 12  2002 /usr/IMNSearch/bin/imqcrcl
+ds001:    71  260 -r-sr-s---  1 188      188        265825 Sep 12  2002 /usr/IMNSearch/bin/imqcrins
+ds001:    72  296 -r-sr-s---  1 188      188        301226 Sep 12  2002 /usr/IMNSearch/bin/imqss
+ds001:    74  204 -r-sr-s---  1 188      188        208269 Sep 12  2002 /usr/IMNSearch/bin/iteadmcl

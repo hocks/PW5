@@ -1,0 +1,67 @@
+#!/bin/ksh 
+#----------------------HEADING-------------------------------------------#
+#               DESCRIPTION
+# This script is to allow users onto the control workstation only to
+# change their password. After changing the password the user is logged out.
+# This provides for system wide updates of the passwords, but restricts 
+# general users from doing anything else on the machine.
+#
+# This script allows the root user to log in fully as well as any other
+# user name appearing in the cw_allowed file.
+#
+#               REQUIRED FILES
+#   /etc/cw_allowed  users allowed on control workstation
+# Changes : 
+# 21/5/99 add chsh for user access  EH
+# 31/8/00 add support for PAS       EH 
+#---------------------------FUNCTIONS------------------------------------#
+# trap to prevent breaking out of script
+trap ':' TSTP INT QUIT STOP KILL
+#---------------------------MAIN PROGRAM---------------------------------#
+# set up filenames
+userfile=/etc/cw_allowed
+
+# Initialize variables
+allow=no
+
+# Find out who is the user trying to log in
+user=$(/bin/whoami)
+
+# If user is root, allow user on
+if [[ $user = "root" ]]
+then
+###  echo "3004-007 You entered an invalid login name or password." 
+     exit 
+fi
+
+# If there is a file containing allowable users on the control workstation
+# check this file to see if this particular user is allowed on or not
+if [[ -a $userfile ]]
+then
+     while read authuser
+     do
+          if [[ $authuser = $user ]]
+          then
+             allow=yes
+          fi
+     done < $userfile 
+fi
+
+# If user was not on the list (or there was no list)
+# then do not allow login
+if [[ $allow = no ]]
+then
+     print "\n\n### Sorry, this is the DataStar System, authorized access only"
+     print "### Please login to tflogin for the BlueHorizon\n\n"
+ 
+     # Log user out
+     print "Logging out..."
+     sleep 3
+     /bin/logout 2>/dev/null
+     #kill -9 `ps -ef | egrep "$$|$PPID" | grep -v grep | grep $user | awk '{ print $2" "$3 }'`
+     exit 1
+
+fi
+
+exit 0
+#---------------------------END PROGRAM----------------------------------#

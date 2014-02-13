@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+@important = qw(nrd LoadL_mas LoadL_neg LoadL_sch LoadL_sta ctcasd hagsd hats_nim mathlm rmcd sanergyd3 writesrv);
+
+%important = map {$_, 1} @important;
+
+
+while (<>) {
+	chomp;
+# ds001: COMMAND       PID     USER   FD   TYPE             DEVICE   SIZE/OFF NODE NAME
+	($host, $cmd, $pid, $user, $fd, $type, $dev, $size, $proto, $port, $state) =
+		split(/\s+/, $_, 10);
+
+	$host =~ s/:$//;
+	next unless ($port =~ /^\*/);
+	$bycommand{$cmd}{$proto}{$port}{$user}{$host}++;
+}
+
+$, = "\t";
+$\ = "\n";
+
+print <<EOF;
+<table border>
+<tr>
+	<td> Command </td>
+	<td> Proto </td>
+	<td> Port </td>
+	<td> User </td>
+	<td> Count </td>
+	<td> Hosts </td>
+</tr>
+EOF
+
+foreach $cmd (sort keys %bycommand) {
+	foreach $proto (sort keys %{$bycommand{$cmd}}) {
+		foreach $port (sort keys %{$bycommand{$cmd}{$proto}}) {
+			foreach $user (sort keys %{$bycommand{$cmd}{$proto}{$port}}) {
+				@hosts = keys %{$bycommand{$cmd}{$proto}{$port}{$user}};
+				$hostcount = @hosts;
+				$hosts = join(', ', compresshosts(@hosts));
+				$color = '';
+				$highlite = $important{$cmd};
+				$color = 'BGCOLOR="yellow"' if $highlite; 
+				print "<tr $color><td valign=top>", join("</td><td valign=top nowrap>", $cmd, $proto, $port, $user, $hostcount), "<td valign=top> $hosts </td></tr>";
+			}
+		}
+	}
+}
+print "</table>";
+
+sub compresshosts {
+	my (@h) = sort @_;
+
+	my $x, $h, $last, $n, $lastn, $startn, $i, @c, @n;
+
+	$last = $h[0];
+	($lastn = $last) =~ s/^ds//;
+	$startn = $lastn;
+	@c = (); @n = ();
+	$i = 0;
+	while ($i < @h) {
+		$h = $h[$i];
+		last if ($h =~ /^ds(\d+)/);
+		push(@n, $h);
+		$i = $i + 1;
+	}
+	if ($i >= @h) {
+		return @n;
+	}
+	while ($i < @h) {
+		$h = $h[$i];
+		last unless ($h =~ /^ds(\d+)/);
+		$lastn = $startn = $1;
+		while (1) {
+			$i += 1;
+			$h = $h[$i];
+			unless ($h =~ /^ds(\d+)/) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$n = $1;
+			if ($n > ($lastn + 1)) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$lastn = $n;
+		}
+	}
+	push(@n, @c);
+	@n;
+}
+
+sub hostrange {
+
+	my($a, $b) = @_;
+
+	if ($a == $b) {
+		return sprintf("ds%3.3d", $a);
+	}
+		return sprintf("ds%3.3d-%3.3d", $a, $b);
+}
+
+__END__
+ds001: COMMAND       PID     USER   FD   TYPE             DEVICE   SIZE/OFF NODE NAME
+ds001: rlogin     270510    u2906    3u  IPv6 0xf10000f334f90b58  0t4078525  TCP ds001.sdsc.edu:1015->ds100g.sdsc.edu:login (ESTABLISHED)
+ds001: nrd       1020138     root    6u  IPv4 0xf10000f32c55df00        0t0  UDP *:nrd
+ds001: xntpd     1036326     root    4u  IPv4 0xf10000f32d81ef00        0t0  UDP *:ntp
+ds001: xntpd     1036326     root    5u  IPv4 0xf10000f32d81ed00        0t0  UDP ds001e.sdsc.edu:ntp
+ds001: xntpd     1036326     root    6u  IPv4 0xf10000f32d81ec00        0t0  UDP ds001s0.sdsc.edu:ntp
+ds001: xntpd     1036326     root    7u  IPv4 0xf10000f32d81eb00        0t0  UDP ds001s1.sdsc.edu:ntp
+ds001: xntpd     1036326     root    8u  IPv4 0xf10000f32d81ea00        0t0  UDP ds001s2.sdsc.edu:ntp
+ds001: xntpd     1036326     root    9u  IPv4 0xf10000f32d81e900        0t0  UDP ds001s3.sdsc.edu:ntp
+ds001: xntpd     1036326     root   10u  IPv4 0xf10000f32d81e800        0t0  UDP ds001.sdsc.edu:ntp
+ds001: inetd     1110154     root    4u  IPv6 0xf10000f32d8b3b58        0t0  TCP *:shell (LISTEN)
+ds001: inetd     1110154     root    5u  IPv4 0xf10000f32d8b3358        0t0  TCP *:kshell (LISTEN)
+ds001: inetd     1110154     root    6u  IPv6 0xf10000f32d8b2b58        0t0  TCP *:login (LISTEN)
+ds001: inetd     1110154     root    7u  IPv4 0xf10000f32d8b2358        0t0  TCP *:klogin (LISTEN)
+ds001: inetd     1110154     root    8u  IPv6 0xf10000f32d8b1b58        0t0  TCP *:exec (LISTEN)
+ds001: inetd     1110154     root    9u  IPv4 0xf10000f32d8b1358        0t0  TCP *:pftpverify (LISTEN)
+ds001: inetd     1110154     root   10u  IPv4 0xf10000f32fca5b58        0t0  TCP *:daytime (LISTEN)
+ds001: inetd     1110154     root   11u  IPv4 0xf10000f32fca5358        0t0  TCP *:time (LISTEN)
+ds001: inetd     1110154     root   12u  IPv4 0xf10000f32fca6b58        0t0  TCP *:32768 (LISTEN)
+ds001: inetd     1110154     root   14u  IPv4 0xf10000f32fca6358        0t0  TCP *:dpclSD (LISTEN)

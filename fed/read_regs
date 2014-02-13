@@ -1,0 +1,27 @@
+#!/usr/bin/ksh
+
+export fedpath=/usrtools/fedtools
+
+usage=" $(basename $0) adpt <sniX> "
+
+if [[ $# -ne 1 ]]; then
+	print -u2 $usage
+	exit 1
+fi
+
+adpt=$1
+echo "ISR:"
+$fedpath/fedread -l ${adpt} -o 0x10000 -d 1 | awk '{print $2,$3}'
+echo
+
+echo "TOD:"
+$fedpath/fedread -l ${adpt} -o 0x20000 -d 1 | awk '{print $2,$3}'
+echo
+
+echo "MASTER:"
+$fedpath/fedread -l ${adpt} -o 0x21000 -d 1 | awk '{print $2,$3}'
+echo
+
+echo "BACKUP:"
+$fedpath/fedread -l ${adpt} -o 0x21010 -d 1 | awk '{print $2,$3}'
+echo

@@ -1,0 +1,7 @@
+#!/bin/ksh
+#
+for i in `lsdev -Cc adapter |grep sni |awk '{print $1}'`
+do
+echo "removing all sni adapters"
+rmdev -l $i -d
+done

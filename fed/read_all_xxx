@@ -1,0 +1,27 @@
+#!/bin/ksh
+
+# Check number of paramters
+if( test $# -lt 1 )
+        then
+                echo "Usage: $0 offset"
+		echo "       Offset must be in hex! (with leading 0x)"
+                exit
+fi
+
+offset=$1
+is_hex=`echo $offset | cut -c1,2 `
+
+if [[ $is_hex != "0x" ]]
+then
+	echo "Offset must be in hex! (with leading 0x)!"
+	exit
+fi
+
+for xxx in 0 1 2 3 4 5 6 7
+do
+	avail=`lsdev -C | grep sni$xxx | awk '{print $2}'`
+	if [[ $avail = "Available" ]]
+	then
+		/usrtools/fedtools/fedread -l sni${xxx} -o ${offset} -d 1
+	fi
+done

@@ -1,0 +1,61 @@
+#!/bin/ksh
+
+if( test $# -ne 1 )
+	then
+		print "Usage: $0 sniX";
+		print "       example: $0 sni0 #dump routes for sni0";
+		exit -1;
+fi
+
+BIN=/usrtools/fedtools
+
+SNIX=$1
+
+# setup Path Table Starting Address:
+${BIN}/fedwrite -l ${SNIX} -o 0x28800 -v 0x0000000000000000 -d	2>> /dev/null;
+
+print "Path Table ... ";
+LOOP=0;
+while( test $LOOP -lt 1024 )
+do
+        printf "%9d: %s %s\n" $LOOP $(${BIN}/fedread -l ${SNIX} -o 0x28810 -d 1  | awk '{print $2, $3}')
+	let LOOP=${LOOP}+1;
+done
+
+# setup Route Table Starting Addresses:
+${BIN}/fedwrite -l ${SNIX} -o 0x28000 -v 0x0000000000000000 -d	2>> /dev/null;
+${BIN}/fedwrite -l ${SNIX} -o 0x28010 -v 0x0000000000000000 -d	2>> /dev/null;
+${BIN}/fedwrite -l ${SNIX} -o 0x28020 -v 0x0000000000000000 -d	2>> /dev/null;
+${BIN}/fedwrite -l ${SNIX} -o 0x28030 -v 0x0000000000000000 -d	2>> /dev/null;
+
+print "\nRoute Table 1 ... ";
+LOOP=0;
+while( test $LOOP -lt 1024 )
+do
+        printf "%9d: %s %s\n" $LOOP $(${BIN}/fedread -l ${SNIX} -o 0x28040 -d 1  | awk '{print $2, $3}')
+	let LOOP=${LOOP}+1;
+done
+
+print "\nRoute Table 2 ... ";
+LOOP=0;
+while( test $LOOP -lt 1024 )
+do
+        printf "%9d: %s %s\n" $LOOP $(${BIN}/fedread -l ${SNIX} -o 0x28050 -d 1  | awk '{print $2, $3}')
+	let LOOP=${LOOP}+1;
+done
+
+print "\nRoute Table 3 ... ";
+LOOP=0;
+while( test $LOOP -lt 1024 )
+do
+        printf "%9d: %s %s\n" $LOOP $(${BIN}/fedread -l ${SNIX} -o 0x28060 -d 1  | awk '{print $2, $3}')
+	let LOOP=${LOOP}+1;
+done
+
+print "\nRoute Table 4 ... ";
+LOOP=0;
+while( test $LOOP -lt 1024 )
+do
+        printf "%9d: %s %s\n" $LOOP $(${BIN}/fedread -l ${SNIX} -o 0x28070 -d 1  | awk '{print $2, $3}')
+	let LOOP=${LOOP}+1;
+done

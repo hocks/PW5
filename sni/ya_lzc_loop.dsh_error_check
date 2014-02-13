@@ -1,0 +1,122 @@
+#!/usr/bin/ksh
+
+TEST_SCRIPT_REV="%Z% %I% %W% %D% %T%";
+
+export AIXTHREAD_SCOPE=S
+export K5MUTE=1;
+
+SCRIPTDIR=${SCRIPTDIR:-"/tmp/sni_debug"};
+TSCRIPT=${TSCRIPT:-"ya_lzc_loop"};
+BINDIR=${BINDIR:-"/tmp/sni_debug"};
+LOCAL_DISK_DIR=${LOCAL_DISK_DIR:-"/tmp"};
+TRACE_DIR=${TRACE_DIR:-"${LOCAL_DISK_DIR}"};
+
+usage() {
+        print "USAGE: $0 starting_index test_count wcoll_file sni_index  sni_count [opt_params]";
+}
+
+test_args(){
+
+# Check starting index
+   if(( $SINDEX > 63 || $SINDEX < 0 )) 
+     then
+          print "starting_index: $SINDEX, is out of range.";
+          print "valid values: 0-63";
+          exit -1;
+   fi
+
+# Check window count
+   if(( $TCOUNT > 64 || $TCOUNT < 0 )) 
+     then
+          print "test_count: $TCOUNT, is out of range.";
+          print "valid values: 0-64";
+          exit -1;
+   fi
+
+# Check the WCOLL file:
+        if( test ! -r ${WCOLL} )
+                then
+                        print "Can Not read: ${WCOLL}";
+                        exit -1;
+        fi
+
+# Check starting sniX index
+   if(( $SNI_INDEX > 7 || $SNI_INDEX < 0 )) 
+     then
+          print "sni_index: $SNI_INDEX, is out of range.";
+          print "valid values: 0-7";
+          exit -1;
+   fi
+
+# Check sniX count
+   if(( $SNI_COUNT > 8 || $SNI_COUNT < 1 )) 
+     then
+          print "sni_count: $SNI_COUNT, is out of range.";
+          print "valid values: 1-8";
+          exit -1;
+   fi
+
+#Check that sni_count is not bigger than number of available sniX
+   ((max_count=8-$SNI_INDEX))
+   if(( $SNI_COUNT > $max_count )) 
+      then
+          print "Invalid sni_count: $SNI_COUNT is greater than $max_count ";
+          exit -1;
+   fi
+}
+
+##
+## build_sni_list:
+##
+build_sni_list(){
+        SNI_LIST=""
+        X=$SNI_INDEX;
+        Y=0;
+        while $(test $Y -lt $SNI_COUNT)
+        do
+                SNI_LIST="${SNI_LIST} sni${X} ";
+                let X=${X}+1;
+                let Y=${Y}+1;
+        done
+}
+
+if( test $# -lt 5 )
+	then
+		usage;
+		exit -1 ;
+fi
+ 
+SINDEX=$1;
+shift;
+TCOUNT=$1;
+shift;
+WCOLL=$1;
+shift;
+SNI_INDEX=$1;
+shift;
+SNI_COUNT=$1;
+shift;
+
+test_args
+build_sni_list
+
+NUM_HOSTS=$(wc -l ${WCOLL} | awk '{print $1}');
+
+print "starting_index ...: ${SINDEX}";
+print "test_count .......: ${TCOUNT}";
+print "WCOLL ............: ${WCOLL}";
+print "TRACE_DIR ........: ${TRACE_DIR}";
+print "SNI_LIST .........: ${SNI_LIST}";
+print "NUM_HOSTS ........: ${NUM_HOSTS}";
+
+
+print "Checking for ERRORs:"
+dsh -f1 "grep ERROR ${TRACE_DIR}/${TSCRIPT}*";
+
+for sni in ${SNI_LIST}
+do
+	print "Checking for Active windows on remote: $sni.";
+	dsh "${BINDIR}/fed_ntbl_builder_util -l $sni  -QN4 -c ${TCOUNT} -s ${SINDEX}" | grep -v 0x0000000000000000;
+done
+
+

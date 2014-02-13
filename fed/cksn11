@@ -1,0 +1,17 @@
+#!/bin/ksh
+#set -x
+echo "Lets single ping all available interfaces from $(hostname -s) sn1 "
+for i in `cat /usrtools/fedtools/up.intsn1` 
+do
+out=`ping -c 1 -s 3000 $i | grep "% packet" | grep -v " 0%"`
+echo "pinging interface ip address $i"
+#out=`ping -c 1 $i | grep "% packet" | grep -v " 0%"`
+if [ "$out" != "" ]
+then
+    echo "Flood ping to $i - $out"
+fi
+done
+echo
+
+#---------------------------------------------------------------------------------------
+

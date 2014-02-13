@@ -1,0 +1,18 @@
+#!/bin/ksh
+#set -x
+#sn0=$(netstat -in |grep sn0 |grep -v link |awk '{print $4}')
+echo "Lets flood ping all available interfaces from $(hostname -s) sn0 "
+for i in `cat /usrtools/fedtools/up.intsn0` 
+do
+out=`ping -f -c 2000 -s 8000 $i | grep "% packet" | grep -v " 0%"`
+echo "pinging interface ip address $i"
+#out=`ping -c 1 $i | grep "% packet" | grep -v " 0%"`
+if [ "$out" != "" ]
+then
+    echo "Flood ping to $i - $out"
+fi
+done
+echo
+
+#---------------------------------------------------------------------------------------
+

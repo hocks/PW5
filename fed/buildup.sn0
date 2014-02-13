@@ -1,0 +1,1 @@
+dsh -a  "netstat -in |grep sn0|grep -v link " |awk '{print $5}' > ./up.intsn0

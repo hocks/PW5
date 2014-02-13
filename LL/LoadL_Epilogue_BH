@@ -1,0 +1,145 @@
+#!/bin/ksh
+#
+#
+# LoadLeveler Epilogue
+#
+#
+# This epilogue script runs as any user,
+#  but has limited function when run by
+#  a user other than root or loadl
+#
+
+#if [[ $LOADL_STEP_OWNER = uxduff ]]
+#then
+## echo "testing from $0 with owner $LOADL_STEP_OWNER" | mail uxduff@sdsc.edu
+#/usr/lpp/mmfs/bin/mmtrace off
+#fi
+
+
+### This section will be run as loadl or root user id 
+
+LOG=/tmp/loadl_epilogue.$$
+#
+shutdown=0
+
+host=`/bin/hostname`
+
+	#
+	# Let's not rush into anything.  Take a bit
+	# to make sure processes dying have a chance
+	# to die before we check.
+	#
+sleep 10
+
+echo "LoadL_Epilogue on $host   `/bin/date`" > $LOG
+
+	#
+	# Find the LoadL_starter process
+	#
+
+proc=`ps -ef | grep LoadL_starter | grep -v grep`
+
+	#
+	# Figure out the user's name from the user id given
+	# via the 'ps' above
+	#
+name=`echo $proc | awk '{ print $1 }'`
+id=`grep ^${name}: /etc/passwd | awk -F':' '{ print $3 }'`
+echo "Exiting user: $name ($id)" >> $LOG
+#
+/bin/id       >> $LOG 2>&1
+/bin/hostname >> $LOG 2>&1
+env           >> $LOG 2>&1
+set           >> $LOG 2>&1
+alias         >> $LOG 2>&1
+#
+if [ -x /usr/local/bin/spusage ] ; then
+    echo "SPusage report: " >> $LOG
+    /usr/local/bin/spusage  >> $LOG
+fi
+#
+echo "Cleaning processes: " >> $LOG
+
+	#
+	# Run the code that checks and cleans out runaway
+	# processes that users leave around...
+	# The argument -k indicates to kill suspect runaway
+	# processes
+	#
+clean_procs="/usr/sdsc/etc/LoadL/clean_procs"
+#
+if [ -x $clean_procs ] ; then
+    echo "$clean_procs starting" >> $LOG
+#   $clean_procs -v -k >> $LOG
+#                                         -c $clean_procs_script
+#
+    $clean_procs    -k -s ~loadl/clean_safe_list >> $LOG 2>&1
+    status=$?
+    echo "$clean_procs complete.  Exit status $status" >> $LOG
+else
+    echo "$clean_procs is NOT executable."             >> $LOG
+    /bin/ls -ld $clean_procs /usr/sdsc/etc/LoadL /usr/sdsc/etc /usr/sdsc /usr / >> $LOG 2>&1
+    /bin/df -k                                                                  >> $LOG 2>&1
+    /bin/id                                                                     >> $LOG 2>&1
+    /bin/mail -s "###ERROR $clean_procs is NOT executable." prodgang@sdsc.edu < $LOG
+    status=0
+fi
+	# Save the status
+
+	# 
+	# The clean_procs code sends output of a 'ps -ef' command
+	# to the file /tmp/outkk.  Put this file into the log for
+	# later reference if needed...
+	#
+echo "Processes during clean:" >> $LOG
+cat /tmp/outkk >> $LOG
+
+	#
+	# delay a bit so that the processes that were killed
+	# can actually die and go away.
+	#
+sleep 10
+
+	#
+	# Show the current processes
+	#
+echo "" >> $LOG
+echo "Processes after clean:" >> $LOG
+
+ps -ef >> $LOG
+
+	#
+	# Send out mail to those interested regarding
+	# the status of this node
+	#
+if [ $status -ne 0 ]
+then
+	SUBJ="TF SP host `hostname` LoadL_Epilogue ($status runaway)"
+#       /bin/mail -s "$SUBJ" tf-loadl@hpcmail.sdsc.edu < $LOG
+#	/bin/mail -s "$SUBJ" diegella@hpcmail.sdsc.edu < $LOG
+else
+	SUBJ="TF SP host `hostname` LoadL_Epilogue (clean)"
+#	/bin/mail -s "$SUBJ" diegella@hpcmail.sdsc.edu < $LOG
+fi
+
+	#
+	# Cleanup temporary files
+	#
+
+if [ "$name" = "diegella" ] ; then
+    /bin/mailx -s "LoadL_Epilogue for $id" diegella < $LOG
+    if [ -d /work/LoadL/LoadL_Epilogue/. ] ; then
+        /bin/cp $LOG /work/LoadL/LoadL_Epilogue
+    fi
+fi
+
+rm -f $LOG
+rm -f /tmp/outkk
+
+
+if [[ $USER = uxduff ]]
+then
+echo "testing from $0" | mail uxduff@sdsc.edu
+fi
+
+exit 0

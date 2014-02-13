@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+#	Script which may be invoked by CRON (once per day) to create a new
+#	syslog file ($LOGDIR/$LOG). In the present version, only the six
+#	lastest releases are saved.
+#
+#	@(#)newsyslog.sh
+#
+#		First release
+#			March 1993 EH       
+#
+LOGDIR=/var/adm
+LOG=syslog  
+#
+if test -d $LOGDIR
+then
+	cd $LOGDIR
+	if test -s $LOG
+	then
+		test -f $LOG.4 && mv $LOG.4 $LOG.5 && chmod 444 $LOG.5
+		test -f $LOG.3 && mv $LOG.3 $LOG.4 && chmod 444 $LOG.4
+		test -f $LOG.2 && mv $LOG.2 $LOG.3 && chmod 444 $LOG.3
+		test -f $LOG.1 && mv $LOG.1 $LOG.2 && chmod 444 $LOG.2
+		test -f $LOG.0 && mv $LOG.0 $LOG.1 && chmod 444 $LOG.1
+		mv $LOG $LOG.0
+		chmod 444 $LOG.0
+                touch $LOG
+	fi
+fi
+#
+SMITLOG=smit.log
+SMITSC=smit.script
+SMITDIR=/
+ 	cd $SMITDIR
+	if test -s $SMITLOG
+	then
+		test -f $SMITLOG.4 && mv $SMITLOG.4 $SMITLOG.5 && chmod 444 $SMITLOG.5
+		test -f $SMITLOG.3 && mv $SMITLOG.3 $SMITLOG.4 && chmod 444 $SMITLOG.4
+		test -f $SMITLOG.2 && mv $SMITLOG.2 $SMITLOG.3 && chmod 444 $SMITLOG.3
+		test -f $SMITLOG.1 && mv $SMITLOG.1 $SMITLOG.2 && chmod 444 $SMITLOG.2
+		test -f $SMITLOG.0 && mv $SMITLOG.0 $SMITLOG.1 && chmod 444 $SMITLOG.1
+                mv $SMITLOG $SMITLOG.0
+                chmod 444 $SMITLOG.0
+        fi
+	if test -s $SMITSC
+	then
+		test -f $SMITSC.4 && mv $SMITSC.4 $SMITSC.5 && chmod 444 $SMITSC.5
+		test -f $SMITSC.3 && mv $SMITSC.3 $SMITSC.4 && chmod 444 $SMITSC.4
+		test -f $SMITSC.2 && mv $SMITSC.2 $SMITSC.3 && chmod 444 $SMITSC.3
+		test -f $SMITSC.1 && mv $SMITSC.1 $SMITSC.2 && chmod 444 $SMITSC.2
+		test -f $SMITSC.0 && mv $SMITSC.0 $SMITSC.1 && chmod 444 $SMITSC.1
+                mv $SMITSC $SMITSC.0
+                chmod 444 $SMITSC.0
+        fi
+#
+MAILDIR=/var/spool/mqueue
+LOG=log
+#
+if test -d $MAILDIR
+then
+	cd $MAILDIR
+	if test -s $LOG
+	then
+		test -f $LOG.4 && mv $LOG.4 $LOG.5 && chmod 444 $LOG.5
+		test -f $LOG.3 && mv $LOG.3 $LOG.4 && chmod 444 $LOG.4
+		test -f $LOG.2 && mv $LOG.2 $LOG.3 && chmod 444 $LOG.3
+		test -f $LOG.1 && mv $LOG.1 $LOG.2 && chmod 444 $LOG.2
+		test -f $LOG.0 && mv $LOG.0 $LOG.1 && chmod 444 $LOG.1
+		mv $LOG $LOG.0
+		chmod 444 $LOG.0
+                touch $LOG
+ 	fi
+fi
+#
+refresh -s syslogd
+#
+CRONDIR=/var/adm/cron
+#
+if test -d $CRONDIR
+then
+	cd $CRONDIR
+	if test -s $LOG
+	then
+		test -f $LOG.2 && mv $LOG.2 $LOG.3 && chmod 444 $LOG.3
+		test -f $LOG.1 && mv $LOG.1 $LOG.2 && chmod 444 $LOG.2
+		test -f $LOG.0 && mv $LOG.0 $LOG.1 && chmod 444 $LOG.1
+		mv $LOG $LOG.0
+		chmod 444 $LOG.0
+                touch $LOG
+ 	fi
+fi
+
+#
+#
+exit
+#EOF

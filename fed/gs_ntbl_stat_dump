@@ -1,0 +1,48 @@
+#!/usr/bin/ksh
+TEST_SCRIPT_REV="%Z% %I% %W% %D% %T%"
+
+##
+##	Setup paths.
+##
+BINDIR=${BINDIR:-"/colony/CSS/stevenjm/fed/bin"};
+SCRDIR=${SCRDIR:-"/colony/CSS/stevenjm/fed/scripts"};
+
+##
+##	Local Functions.
+##
+usage() {
+	print "USAGE: $0 sniX";
+}
+
+
+##
+##	Handle the Required params.
+##
+if( test $# -ne 1)
+	then
+		usage;
+		print;
+		exit -1;
+fi
+
+SNIX=$1;	shift;
+
+##
+##	Load Common Support Functions.
+##
+. ${SCRDIR}/gs_job_support_funcs
+
+verify_sni;
+
+##
+##	Setup internal defs.
+##
+B_UTIL="${BINDIR}/fed_ntbl_builder_util";
+L_UTIL="${BINDIR}/fed_ntbl_loader_util";
+
+##
+##	Dump Inital State.
+##
+print_status;
+
+

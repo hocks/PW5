@@ -1,0 +1,326 @@
+#!/bin/ksh  
+#
+if [ "$DEBUG" ] ; then
+    set -xv
+fi
+#
+#  /etc/rc.local for DS hosts
+#
+#################################################################################
+#
+#
+function CheckForHardware
+{
+HOSTNAME=`hostname -s`
+
+if [[  $HOSTNAME = ds[1-2][0-9][0-9]  ]] ; then
+
+# check memory = 16GB
+   MEM=`lsattr -El mem0 |grep good | awk '{ print $2 }'`
+   if [ $MEM = "15360" ] ; then
+   echo "$(hostname -s) has $MEM memory"
+# check the status of installed processors.
+        procnum=$(lsdev -C |grep proc |wc -l)
+          echo "$(hostname -s) has $procnum processors"
+        if [ $procnum -ne 8 ] ; then
+          echo "$(hostname -s) only has $procnum processors" >>/var/adm/syslog
+          exit 1
+        fi
+        for proc in `lsdev -C |grep proc |awk '{print $1}'`
+        do
+          state=`lsattr -El $proc |grep state|awk '{print $2}'`
+          enable="enable"
+          if [ "$state" != "enable" ] ; then
+            echo "$(hostname -s) $proc bad" >>/var/adm/syslog
+            exit 1
+          fi
+       done
+    else
+       echo "$(hostname -s) memory is bad" $MEM >>/var/adm/syslog
+       exit 1
+    fi
+# check available CPU/L3 cache
+  /usr/lib/boot/bin/dmpdt_chrp -i |grep "08000000    "
+        if [ $? -ne 0 ] ; then
+        echo "$(hostname -s) L3 is bad"  >>/var/adm/syslog
+        exit 1 
+        fi   
+fi
+}
+#
+#################################################################################
+#
+# Wait for host to answer ping. 
+# Retry once a minute for up to 1 hour per host.
+#
+function Wait_for_ping
+{ 
+    NUMBER_PINGS=3          # Number of pings: 1, 2, 3, 4, 5 or 10 ONLY! 
+    SW_LOGINTERVAL=5        # Log trying message every 'n' attempts
+    SW_TCOUNT=180           # Number of times to check switch before timeout (3 hours)
+    SW_SLEEP=60             # Number of seconds to wait between checks
+#
+### echo "$0: `/bin/date`: Begin waiting for the host list $* to answer a ping."
+#
+    for host in $* ; do
+        count=999999
+        tcount=0
+        up=0
+        failed=0
+#
+        until [ $up -eq 1 ] ; do
+            echo "$0: `/bin/date`: Begin waiting for host $host to answer $NUMBER_PINGS ping(s)."
+            pings=`/etc/ping -c $NUMBER_PINGS $host`
+#
+            for find in $pings ; do
+                if [[ "$find" = *% ]] ; then
+                    break
+                fi
+            done
+#
+#           Case statement is tuned for 3 packets, then 1, then 2, then 4, then 5, then 10 pings
+#           find is % packet loss
+#
+            case $find in
+                ("0%")   up=1 ; error=0 ; percent=0   ;;
+                ("50%")  up=1 ; error=0 ; percent=50  ;;
+                ("100%") up=0 ; error=0 ; percent=100 ;;
+ 
+                ("33%")  up=1 ; error=0 ; percent=33  ;;
+                ("66%")  up=1 ; error=0 ; percent=66  ;;
+
+                ("25%")  up=1 ; error=0 ; percent=25  ;;
+                ("75%")  up=1 ; error=0 ; percent=75  ;;
+
+                ("20%")  up=1 ; error=0 ; percent=20  ;;
+                ("40%")  up=1 ; error=0 ; percent=40  ;;
+                ("60%")  up=1 ; error=0 ; percent=60  ;;
+                ("80%")  up=1 ; error=0 ; percent=80  ;;
+
+                ("10%")  up=1 ; error=0 ; percent=20  ;;
+                ("30%")  up=1 ; error=0 ; percent=20  ;;
+                ("70%")  up=1 ; error=0 ; percent=60  ;;
+                ("90%")  up=1 ; error=0 ; percent=80  ;;
+                ("")     up=0 ; error=1 ; percent=-1  ;;
+                (*)      up=0 ; error=1 ; percent=-2  ;;
+            esac
+#
+            count=`expr $count + 1`
+            tcount=`expr $tcount + 1`
+#
+###         echo "$0: `/bin/date`: Host=$host  up=$up  error=$error  percent_loss=$percent  count=$count  tcount=$tcount  failed=$failed"
+#
+            if [ $up -eq 1 ] ; then
+                break
+            elif [ $tcount -ge $SW_TCOUNT ] ; then
+                echo "$0: `/bin/date`: Maximum retry count reached pinging host $host"
+                break
+            elif [ $count -ge $SW_LOGINTERVAL ] ; then
+                count=0
+                echo "$0: `/bin/date`: Still waiting for host $host to answer a ping."
+            fi
+#
+            echo sleep $SW_SLEEP
+            sleep $SW_SLEEP
+        done
+#
+        if [ $up -eq 0 ] ; then
+            echo "$0: `/bin/date`: Giving up on pinging host $host"
+            failed=`expr $failed + 1`
+        else
+            echo "$0: `/bin/date`: Host $host is up according to ping."
+        fi
+    done
+#
+    return $failed
+} # end_function Wait_for_ping
+#
+############################################################################
+#
+if [ ! "$DEBUG" ] ; then
+    exec 1>>/var/adm/syslog
+    exec 2>&1
+fi
+#
+DATE=`date`
+HOSTNAME=`hostname -s`
+
+echo "$DATE $0: Running on node $NodeNumber"
+
+#   disable kill root processes when pgsp low
+#    /usr/samples/kernel/vmtune -n 1
+
+#
+# restart NTP with the correct ntp.config file
+
+#  BINDIR=/usr/sbin
+#  if [ -r /etc/ntp.conf.nodes ] ; then
+#      cp /etc/ntp.conf.nodes /etc/ntp.conf
+#  # check to see if ntp is already running
+#   if [[ -n `ps -ef | grep $BINDIR/xntpd | egrep -v grep` ]] ; then
+#     echo "rc.ntp: NTP already running - restarting ntp"
+#     PID=`ps -e|grep ntp|awk '{ print $1 }'`
+#     kill $PID
+#     $BINDIR/ntpdate -b -o 3 ns1.sdsc.edu
+#   fi
+#  echo "rc.local: Starting ntp daemon(xntpd)"
+#  startsrc -s xntpd
+# fi
+
+# start sendmail queue checking
+echo "checking sendmail -q1h"
+# check to see if sendmail is already running
+   if [[ -n `ps -ef | grep sendmail | egrep -v grep` ]] ; then
+     PID=`ps -e|grep sendmail|awk '{ print $1 }'`
+     kill $PID
+   fi
+
+# /usr/sdsc/bin/orphan /usr/sbin/sendmail -q1h
+#
+####################################################################################################
+#
+# Mods requested by Jeff Makey
+#
+chmod go-w /dev
+chmod go-w /etc/3270.keys
+chmod go-w /etc/3270_arab_kyb.map
+chmod go-w /etc/3270keys.dtterm
+chmod go-w /etc/3270keys.hft
+chmod go-w /etc/binld.cnf
+chmod go-w /etc/dfpd.conf
+chmod go-w /etc/dhcprd.cnf
+chmod go-w /etc/dhcpsd.cnf
+chmod go-w /etc/environment
+chmod go-w /etc/filesystems
+chmod go-w /etc/gated.conf
+chmod go-w /etc/hosts
+chmod go-w /etc/hosts.lpd
+chmod go-w /etc/inetd.conf
+chmod go-w /etc/netsvc.conf
+chmod go-w /etc/ntp.conf
+chmod go-w /etc/pxed.cnf
+chmod go-w /etc/swapspaces
+chmod go-w /etc/telnet.conf
+chmod go-w /etc/trcfmt
+chmod gu-s /opt/rsct/vsd/bin/lsvsd
+chmod gu-s /opt/rsct/vsd/bin/statvsd
+chmod gu-s /opt/freeware/bin/procmail
+chmod gu-s /opt/freeware/sbin/traceroute
+chmod gu-s /opt/freeware/kde/bin/kcheckpass
+chmod gu-s /usr/bin/traceroute
+chmod gu-s /var/docsearch/cgi-bin/caixsrch.exe
+chmod gu-s /var/docsearch/cgi-bin/caixsrchDB.exe
+chmod gu-s /var/docsearch/cgi-bin/ds_form
+chmod gu-s /var/docsearch/cgi-bin/ds_print
+chmod gu-s /var/docsearch/cgi-bin/ds_rslt
+chmod gu-s /var/docsearch/cgi-bin/vacsrch.exe
+chmod gu-s /var/docsearch/cgi-bin/vacsrchDB.exe
+chmod gu-s /usr/bin/yppasswd
+chmod 400 /usr/bin/passwd.aix
+#################################################
+if [ -f /var/$HOSTNAME.DO_NOT_RUN_PRODUCTION ] ; then
+   echo '######## node $HOSTNAME does not run production ######'
+   exit 99
+fi
+###############################################################################
+#
+# Verify symlinks are in place, they're required for production.
+#
+if [ ! -e /users ] ; then
+    ln -s /rmount/users00 /users
+fi
+if [ ! -e /gpfs ] ; then
+    ln -s /dsgpfs1 /gpfs
+fi
+#
+CheckForHardware
+#
+#check /scratch
+if [[  $HOSTNAME = ds[1-2][0-9][0-9]  || $HOSTNAME = ds00[3-9] || $HOSTNAME = ds01[0-1] ]] ; then
+ SCRA=`df /scratch | grep dev | awk '{print $1}'`
+ if [ $SCRA = "/dev/hd4" ] ; then
+   echo "$(hostname -s) has no /srcatch mounted" >>/var/adm/syslog
+   mailx -s "$(hostname -s) has scratch problems:" root@sdsc.edu \ 
+   2> /dev/null </tmp/mail$$
+   exit 1
+ fi
+fi
+
+################################################################################
+#
+# Mount NFS filesystems over the Fed
+#
+Wait_for_ping dsnfs
+mount -o combehind,numclust=128 /rmount/users00
+mount -o combehind,numclust=128 /rmount/users01
+mount -o combehind,numclust=128 /rmount/users02
+mount -o combehind,numclust=128 /rmount/users03
+mount -o combehind,numclust=128 /rmount/users04
+mount -o combehind,numclust=128 /rmount/users05
+mount -o combehind,numclust=128 /rmount/users06
+mount -o combehind,numclust=128 /rmount/users07
+mount -o combehind,numclust=128 /rmount/users08
+mount -o combehind,numclust=128 /rmount/users09
+mount -o combehind,numclust=128 /rmount/work
+mount -o combehind,numclust=128 /rmount/usr/local
+mount -o combehind,numclust=128 /rmount/acct
+mount -o combehind,numclust=128 /rmount/catalina
+mount -o combehind,numclust=128 /rmount/sdsc
+
+
+if [[  $HOSTNAME = ds001 ]]; then
+  Wait_for_ping tf004ig
+  Wait_for_ping tf005ig
+  Wait_for_ping tfgpfsnfs
+  mount -t tf
+fi
+
+#
+###############################################################################
+#
+# Make sure that Async I/O is enabled and will autoconfigure on reboot
+#
+/usr/sbin/mkdev -l aio0
+/usr/sbin/chdev -l aio0 -P -a autoconfig=available
+/usr/sbin/mkdev -l 'posix_aio0'
+/usr/sbin/chdev -l 'posix_aio0' -P -a autoconfig=available
+###############################################################################
+# Wait for GPFS
+if [[ -e /var/adm/ras/mmfs.log.latest ]] ; then
+    status=1
+    until [ $status -eq 0 ] ; do
+        ####/bin/fgrep 'finished mounting /dev/dsgpfs1' /var/adm/ras/mmfs.log.latest
+	/usr/sbin/mount | /usr/bin/grep "/dev/dsgpfs1"
+        status=$?
+        sleep 20
+    done
+        /usr/sbin/mount /dsgpfs2
+else
+    echo "$(hostname -s) has no /var/adm/ras/mmfs.log.latest file" >>/var/adm/syslog 
+    exit 2
+fi
+###############################################################################
+# Start production
+#
+#db2 v8.2 DL start BLAST deamon
+#
+if [[ $HOSTNAME = ds003 ]] ; then
+su - db2inst1 -c "/dbms/db2/home/db2inst1/sqllib/bin/db2blast_daemon \
+   -c /dbms/db2/home/db2inst1/BLAST/cfg/BLAST_DAEMON.config"
+#su - db2inst1 -c "/dbms/db2/home/db2inst1/sqllib/adm/db2start"
+#su - db2i001  -c "/dbms/db2/home/db2inst1/sqllib/adm/db2start"
+
+fi
+#
+# start LoadL
+if [ -f /users/loadl/$HOSTNAME.DO_NOT_RUN_PRODUCTION ] ; then
+   echo '######## node $HOSTNAME does not run production ######'
+elif [[ -d /usr/lpp/LoadL/full/bin ]] ;  then
+    /usr/lpp/LoadL/full/bin/llctl start
+fi
+# activate WLM 
+if [[ $HOSTNAME = ds001 || $HOSTNAME = ds002 || $HOSTNAME = ds003 ]] ; then
+    /usr/sbin/wlmcntrl -a
+fi
+#
+

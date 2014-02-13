@@ -1,0 +1,538 @@
+#!/usr/bin/ksh
+# IBM_PROLOG_BEGIN_TAG
+# This is an automatically generated prolog.
+#
+#
+#
+# IBM CONFIDENTIAL
+#
+# OBJECT CODE ONLY SOURCE MATERIALS
+#
+# (C) COPYRIGHT International Business Machines Corp. 2003
+# All Rights Reserved
+#
+# The source code for this program is not published or otherwise
+# divested of its trade secrets, irrespective of what has been
+# deposited with the U.S. Copyright Office.
+#
+# IBM_PROLOG_END_TAG
+################################################################################
+
+TEST_patch_paths_1024_rtloop_REV="%Z% %I% %W% %D% %T%";
+
+export AIXTHREAD_SCOPE=S
+export K5MUTE=1;
+
+BINDIR=${BINDIR:-"/colony/CSS/stevenjm/fed/bin"};			## Mounted or Local filesystem
+TRACE_DIR=${TRACE_DIR:-"/log/dgsp_aa_multi_dsh_traces"};		## Best if on a local filesystem
+NTBL_DIR=${NTBL_DIR:-"/colony/CSS/stevenjm/fed/test_case_ntbl_dir"};	## Must be a mounted filesystem that all nodes in job can access.
+TEST_BINARY="${TEST_BINARY:-"dgsp_aa_rt64"}";
+
+AWZ=0x0000000000000000;
+
+usage() {
+	print "USAGE: $0 starting_index window_count wcoll_file sni_index  sni_count [opt_params]";
+}
+
+load_ntbl(){
+	print "load_ntbl(): Enter.";
+	##
+	## Build the NTBL
+	## Use 'dsh -f1' to insure that only one process is writing the NTBL file at any time.
+	##
+	dsh "rm -f ${NTBL_FILE}";	## Make sure file is empty!
+	for sni in ${SNI_LIST}
+	do
+		dsh -f1 "${BINDIR}/fed_ntbl_builder_util -l $sni -f ${NTBL_FILE} -c ${WCOUNT} -s ${SINDEX}";
+	done
+
+	##
+	## Do a word count of the NTBL_FILE:
+	##
+	wc ${NTBL_FILE};
+	
+	##
+	## Copy the NTBL_FILE into the TRACE_DIR.
+	##
+	dsh "cp ${NTBL_FILE} ${LNTBLF}";
+	
+	for sni in ${SNI_LIST}
+	do
+		print "LOAD_NTBL on $sni"
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -f ${LNTBLF} -c ${WCOUNT} -s ${SINDEX} -j ${JOBID} -J ${JOBMAX}";
+		print;
+	done
+	print "load_ntbl(): Exit.";
+}
+
+build_and_install_start_file(){
+	print "build_and_install_start_file(): Enter.";
+##
+## Build a start_file that can be run on each node.
+##
+cat > ${NTBL_DIR}/start_file << HERE
+#!/usr/bin/ksh
+
+if( test \$# != 0 )
+	then
+	print "USAGE: \$0";
+	exit -1;
+fi
+
+for sni in ${SNI_LIST}
+do
+	INDEX=${SINDEX};
+	COUNT=0;
+	while [ \${COUNT} -lt ${WCOUNT} ]
+	do
+		SOUTFILE="${TRACE_DIR}/dgsp_aa_\${sni}_\${COUNT}_trace.out";
+		EOUTFILE="${TRACE_DIR}/dgsp_aa_\${sni}_\${COUNT}_trace.err";
+		date > \${SOUTFILE};
+		${LBF} -nl \${sni} -i0 -f ${LNTBLF} -s \${INDEX} -j ${JOBID} ${CMD_LINE_OPT} >> \${SOUTFILE} 2> \${EOUTFILE} &
+		let INDEX=\${INDEX}+1;
+		let COUNT=\${COUNT}+1;
+	done
+done
+print "All Tasks Have been Started!"
+HERE
+	dsh "cp ${NTBL_DIR}/start_file ${TRACE_DIR}/start_file";
+	dsh "chmod +x ${TRACE_DIR}/start_file";
+	print "build_and_install_start_file(): Exit.";
+}
+
+
+build_and_install_shutdown_file(){
+	print "build_and_install_shutdown_file(): Enter.";
+##
+## Build a shutdown_file that can be run on each node.
+##
+cat > ${NTBL_DIR}/shutdown_file << HERE
+#!/usr/bin/ksh
+
+if( test \$# != 0 )
+	then
+	print "USAGE: \$0";
+	exit -1;
+fi
+
+for sni in ${SNI_LIST}
+do
+	INDEX=${SINDEX};
+	COUNT=0;
+	while [ \${COUNT} -lt ${WCOUNT} ]
+	do
+		SOUTFILE="${TRACE_DIR}/dgsp_aa_\${sni}_\${COUNT}_trace.out";
+		EOUTFILE="${TRACE_DIR}/dgsp_aa_\${sni}_\${COUNT}_trace.err";
+		tail -2 \${SOUTFILE}
+		cat \${EOUTFILE}
+		let INDEX=\${INDEX}+1;
+		let COUNT=\${COUNT}+1;
+	done
+	${BINDIR}/fed_ntbl_loader_util -l \${sni} -c ${WCOUNT} -s ${SINDEX} -U;
+done
+HERE
+	dsh "cp ${NTBL_DIR}/shutdown_file ${TRACE_DIR}/shutdown_file";
+	dsh "chmod +x ${TRACE_DIR}/shutdown_file";
+	print "build_and_install_shutdown_file(): Exit.";
+}
+
+unload_ntbl(){
+	print "unload_ntbl(): Enter.";
+	for sni in ${SNI_LIST}
+	do
+		dsh "${BINDIR}/fed_ntbl_loader_util -l $sni -c ${WCOUNT} -s ${SINDEX} -U";
+	done
+	print "unload_ntbl(): Exit.";
+}
+
+system_cleanup(){
+	print "system_cleanup(): Enter.";
+	##
+	## Run the following cmds to cleanup after the test is compleated!
+	##
+	dsh "rm -f ${NTBL_FILE}";
+	dsh "rm -f ${LNTBLF}";
+	dsh "rm -f ${LBF}";
+	dsh "rm -f ${NTBL_DIR}/start_file ${TRACE_DIR}/start_file";
+	dsh "rm -f ${NTBL_DIR}/start_file ${TRACE_DIR}/shutdown_file";
+	dsh "rm -f ${TRACE_DIR}/dgsp_aa_sni*_*_trace.*";
+	print "system_cleanup(): Exit.";
+}
+
+run_check(){
+	print
+	date;
+	print "run_check(): Enter";
+	TAWC=0;
+	TGT_CNT=0;
+	for sni in ${SNI_LIST}
+	do
+		let TGT_CNT=TGT_CNT+${NUM_HOSTS};
+	done
+	while( test ${TAWC} -ne ${TGT_CNT} )
+	do
+		TAWC=0;
+		print "sleeping for ${NUM_HOSTS}";
+		sleep ${NUM_HOSTS};
+		for sni in ${SNI_LIST}
+		do
+			print "Checking $sni:";
+			print "Checking if nodes have completed!";
+			dsh "${BINDIR}/fed_ntbl_builder_util -l $sni -QN4 -c ${WCOUNT} -s ${SINDEX}" | grep ${AWZ};
+			AWC=$(dsh "${BINDIR}/fed_ntbl_builder_util -l$sni -QN1 -c${WCOUNT} -s${SINDEX}" | grep -v ${AWZ} | wc -l | awk '{print $1}');
+			print "${AWC} of ${NUM_HOSTS} nodes have completed on ${sni}.";
+			print "Checking: ${TRACE_DIR}/dgsp_aa_${sni}_*_trace.* files for errors:"
+			dsh "grep ERROR ${TRACE_DIR}/dgsp_aa_${sni}_*_trace.*"
+			let TAWC=${TAWC}+${AWC};
+		done
+	done
+	print "run_check(): Exit";
+}
+
+test_windows_unloaded(){
+	date
+	print
+	print "test_windows_unloaded(): Enter";
+	for sni in ${SNI_LIST}
+	do
+		for WS in 1 2 3 4
+		do
+			WSTV="$(dsh "${BINDIR}/fed_ntbl_builder_util -l$sni -QN${WS} -c${WCOUNT} -s${SINDEX}" | grep -v $AWZ | wc -l | awk '{print $1}')";
+			if( test ${WSTV} -eq 0)
+				then :
+				else
+					print "ERROR!";
+					print "One or more of the windows you have selected for this test are in use!";
+					dsh "${BINDIR}/fed_ntbl_builder_util -l $sni -QN${WS} -c ${WCOUNT} -s ${SINDEX}" | grep -v $AWZ;
+					print "Exiting the test scripts now!"
+					exit -1;
+			fi
+		done
+	done
+	print "test_windows_unloaded(): Exit";
+}
+
+test_windows_loaded(){
+	print "test_windows_loaded(): Enter";
+	for sni in ${SNI_LIST}
+	do
+		for WS in 0 2 3 4
+		do
+			WSTV="$(dsh "${BINDIR}/fed_ntbl_builder_util -l$sni -QN${WS} -c${WCOUNT} -s${SINDEX}" | grep -v $AWZ | wc -l | awk '{print $1}')";
+			if( test ${WSTV} -eq 0)
+				then :
+				else
+					print "ERROR!";
+					print "One or more of the windows you have selected for this test did not transition into the NTBL_LOADED state!";
+					dsh "${BINDIR}/fed_ntbl_builder_util -l $sni -QN${WS} -c ${WCOUNT} -s ${SINDEX}" | grep -v $AWZ;
+					print "Exiting the test scripts now!"
+					exit -1;
+			fi
+		done
+	done
+	print "test_windows_loaded(): Exit";
+}
+
+test_windows_active(){
+	print
+	date
+	print "test_windows_active(): Enter";
+	for sni in ${SNI_LIST}
+	do
+		for WS in 1 0 2 3
+		do
+			WSTV="$(dsh "${BINDIR}/fed_ntbl_builder_util -l$sni -QN${WS} -c${WCOUNT} -s${SINDEX}" | grep -v $AWZ | wc -l | awk '{print $1}')";
+			if( test ${WSTV} -eq 0)
+				then :
+				else
+					print "WARNING!";
+					print "One or more of the windows you have selected for this test are not active!";
+					dsh "${BINDIR}/fed_ntbl_builder_util -l $sni -QN${WS} -c ${WCOUNT} -s ${SINDEX}" | grep -v $AWZ;
+			fi
+		done
+	done
+	print "test_windows_active(): Exit";
+}
+
+test_args(){
+	# Check starting index
+	if(( $SINDEX > 63 || $SINDEX < 0 )) 
+		then
+			print "starting_index: $SINDEX, is out of range.";
+			print "valid values: 0-63";
+			exit -1;
+	fi
+
+	# Check window count
+	if(( $WCOUNT > 64 || $WCOUNT < 0 )) 
+		then
+			print "window_count: $WCOUNT, is out of range.";
+			print "valid values: 0-64";
+			exit -1;
+	fi
+
+	# Check the WCOLL file:
+	if( test ! -r ${WCOLL} )
+		then
+			print "Can Not read: ${WCOLL}";
+			exit -1;
+	fi
+
+	# Check starting sniX index
+	if(( $SNI_INDEX > 7 || $SNI_INDEX < 0 )) 
+		then
+			print "sni_index: $SNI_INDEX, is out of range.";
+			print "valid values: 0-7";
+			exit -1;
+	fi
+
+	# Check sniX count
+	if(( $SNI_COUNT > 8 || $SNI_COUNT < 1 )) 
+		then
+			print "sni_count: $SNI_COUNT, is out of range.";
+			print "valid values: 1-8";
+			exit -1;
+	fi
+
+	#Check that sni_count is not bigger than number of available sniX
+	((max_count=8-$SNI_INDEX))
+	if(( $SNI_COUNT > $max_count )) 
+		then
+			print "Invalid sni_count: $SNI_COUNT is greater than $max_count ";
+			exit -1;
+	fi
+}
+
+##
+## build_sni_list:
+##
+build_sni_list(){
+        SNI_LIST=""
+        X=$SNI_INDEX;
+        Y=0;
+        while $(test $Y -lt $SNI_COUNT)
+        do
+                SNI_LIST="${SNI_LIST} sni${X} ";
+                let X=${X}+1;
+                let Y=${Y}+1;
+        done
+}
+
+##
+## run_start_files
+##
+run_start_files() {
+        print
+        date;
+        dsh -f ${NUM_HOSTS} "${TRACE_DIR}/start_file"
+}
+
+##
+## patch_paths  
+##
+patch_paths() {
+	date
+	print
+        print "Set current route to: $route"
+        dsh -f ${NUM_HOSTS} "${BINDIR}/patch_paths_1024_rtloop $route; ${BINDIR}/routes_orig_rtloop $route"
+}
+
+###
+### dump_routes
+###
+dump_routes() {
+	date
+	print
+        print "Dumping route tables . . . "
+        for sni in ${SNI_LIST}; do
+                #1 node at a time ensures we don't overload rshd with route table replies
+                print "dsh -f 1 ${BINDIR}/dump_routes_osi -l ${sni}" >> dgsp_aa_multi.${date_stamp}.dump_routes.out 2>&1
+                dsh -f 1 "${BINDIR}/dump_routes_osi -l ${sni}" >> dgsp_aa_multi.${date_stamp}.dump_routes.out 2>&1
+        done
+	compress dgsp_aa_multi.${date_stamp}.dump_routes.out
+}
+
+###
+### get_FTM_status
+###
+get_FTM_status() {
+	date
+	print
+        print "Reading FTM status (0xc4020) from the adapters"
+
+        for sni in ${SNI_LIST}; do
+        	print "Reading ${sni} FTM status (0xc4020) for route ${route}" >> dgsp_aa_multi.${date_stamp}.FTM_status.${route}.out 2>&1
+                dsh /usr/sni/aix52/debugtools/sni_read -l ${sni} -o 0xc4020 >> dgsp_aa_multi.${date_stamp}.FTM_status.${route}.out 2>&1
+        done
+}
+
+
+###
+### routes_diff
+###
+routes_diff() {
+	print
+	date
+        print "Doing routes diff at $(date)"
+
+        print "\n$(date)\nCalling routes_diff_rtloop $route"
+        dsh  "${BINDIR}/routes_diff_rtloop $route" 1> dgsp_aa_multi.${date_stamp}.routes_diff.${route}.out 2>&1
+}
+
+
+###
+### start of program
+###
+
+if( test $# -lt 5 )
+	then
+		usage;
+		exit -1 ;
+fi
+ 
+CMD_LINE_FULL="$0 $*";
+SINDEX=$1;
+shift;
+WCOUNT=$1;
+shift;
+WCOLL=$1;
+DSH_LIST=$WCOLL
+export DSH_LIST 
+export WCOLL   
+shift;
+SNI_INDEX=$1;
+shift;
+SNI_COUNT=$1;
+shift;
+CMD_LINE_OPT="$*";
+
+date_stamp="$(date +%m%d)_$(date +%H%M)"
+test_args
+build_sni_list
+
+BASENAME=$(basename $0);
+JOBID=${JOBID:-"666"};
+JOBMAX=${JOBMAX:-"0x2000000"}; # 1024*1024*32 == 0x2000000
+NTBL_FILE="${NTBL_DIR}/.dgsp_aa.${BASENAME}.${JOBID}";
+LBF="${TRACE_DIR}/${TEST_BINARY}.${JOBID}";
+LNTBLF="${TRACE_DIR}/.dgsp_aa.${BASENAME}.${JOBID}";
+NUM_HOSTS=$(wc -l ${WCOLL} | awk '{print $1}');
+
+print "Full CMD Line ....: ${CMD_LINE_FULL}";
+print "CMD Line OPT .....: ${CMD_LINE_OPT}";
+print "Start Time .......: $(date)";
+print "PID of this job is:  $$"
+print "Test Binary ......: ${TEST_BINARY}";
+print "starting_index ...: ${SINDEX}";
+print "window_count .....: ${WCOUNT}";
+print "Job ID ...........: ${JOBID}";
+print "Job MAX ..........: ${JOBMAX}";
+print "WCOLL ............: ${WCOLL}";
+print "NTBL_DIR..........: ${NTBL_DIR}";
+print "NTBL_FILE ........: ${NTBL_FILE}";
+print "LNTBLF ...........: ${LNTBLF}";
+print "LBF ..............: ${LBF}";
+print "SNI_LIST .........: ${SNI_LIST}";
+print "TRACE_DIR ........: ${TRACE_DIR}";
+print "NUM_HOSTS ........: ${NUM_HOSTS}";
+
+##
+## Make a directory for the generated trace files and NTBL testcase dir
+##
+print "Making remote TRACE_DIR: ${TRACE_DIR}"
+dsh "mkdir -p ${TRACE_DIR}" 2> /dev/null
+print "Making NTBL_DIR: ${NTBL_DIR} in case it's not there"
+dsh "mkdir -p ${NTBL_DIR}" 2> /dev/null
+
+##
+## Copy the test binary into the LBF.
+## Create and install helper scripts.
+##
+print
+date;
+dsh "cp ${BINDIR}/${TEST_BINARY} ${LBF}";
+build_and_install_start_file;
+build_and_install_shutdown_file;
+
+
+##
+## Verify selected windows are avalable!
+## Force an UNLOAD_NTBL, then verify the windows to
+## be used are all in the NTBL_UNLOADED state.
+##
+print;
+date;
+unload_ntbl;
+test_windows_unloaded;
+
+##
+## Build and Load the NTBL for this Job.
+## Verify the LNTBL_LOAD was asuccess.
+##
+print
+date;
+load_ntbl;
+test_windows_loaded;
+dump_routes
+
+
+##
+## Loop through running the test for all 4 routes
+##
+for route in 0 1 2 3 ; do
+	print "Testing route ${route}"
+
+	##
+	## to test the current route, set the current path in path table
+	##
+	patch_paths
+
+	##
+	## get the FTM status counters for all adapters before current test
+	##
+	get_FTM_status
+
+	##
+	## Start the Test Run
+	##
+	run_start_files
+
+	##
+	## Wait for the tests to get started.
+	##
+	test_windows_active;
+
+	##
+	## Wait for the test run to complete.
+	## Check for runtime failures.
+	##
+	run_check;
+
+	##
+	## Diff the path table dump taken before the test against current path table dump
+	##
+	routes_diff
+done
+
+route=done
+##
+## get final FTM status counters at end of test
+##
+get_FTM_status
+
+
+##
+## Run the remote shutdown helper file.
+## Cleanup.
+print
+date;
+dsh "${TRACE_DIR}/shutdown_file"
+sleep 60
+system_cleanup;
+
+##
+## Done!
+##
+print; 
+date;
+print "Finished test.";

@@ -1,0 +1,340 @@
+#!/usr/bin/ksh
+#get_ping_snidata - v1.0 (10/18/03) - jjl
+#collect data for diagnosing sni ping problems
+
+function usage 
+{ 
+    print "get_ping_snidata [-l sni adapter number -o output directory]"
+    print "e.g. get_ping_snidata           -> for all sn interfaces"
+    print "or   get_ping_snidata -l sni1   -> for just sni1 device"
+    print "NB: output files will be written to current working dir if -o flag not used"
+    exit 1
+}
+
+function kdb_print_desc_memory
+{
+    DSC_V_ADDR=$1
+    DSC_INDEX=$2
+    print "dd ${DSC_V_ADDR}-10+${DSC_INDEX}*10 6" | kdb | tail -3 | grep -v "^(0)"
+    print 
+}
+
+
+function get_ifsn_data
+{
+    ADAPTER=$1
+
+    integer CURRENT_FIFO=0
+    SFIFO=1
+    RFIFO=2
+    B2KRFIFO=3
+    B2KSFIFO=4
+    BCSTRFIFO=5
+    BCSTSFIFO=6
+
+    date > ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out 2>&1
+    /usr/sbin/ifsn_dump -Z -l sn${ADAPTER} > ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out 
+    cat ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out |  
+    while read IFSN_DUMP_LINE; do
+        #set flag for rFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "rFifo:" 2>/dev/null); then
+            CURRENT_FIFO=RFIFO
+        fi
+
+        #set flag for sFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "sFifo:" 2>/dev/null); then
+            CURRENT_FIFO=SFIFO
+        fi
+
+        #set flag for B2KrFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "B2KrFifo:" 2>/dev/null); then
+            CURRENT_FIFO=B2KRFIFO
+        fi
+
+        #set flag for B2KsFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "B2KsFifo:" 2>/dev/null); then
+            CURRENT_FIFO=B2KSFIFO
+        fi
+
+        #set flag for BcstrFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "BcstrFifo:" 2>/dev/null); then
+            CURRENT_FIFO=BCSTRFIFO
+        fi
+
+        #set flag for BcstsFifo once we know we're reading this block
+        if (print $IFSN_DUMP_LINE | grep -w "BcstsFifo:" 2>/dev/null); then
+            CURRENT_FIFO=BCSTSFIFO
+        fi
+
+        #'greping' what we need is SLOW, so only check valid lines
+        if (( CURRENT_FIFO > 0)); then
+            if (print $IFSN_DUMP_LINE | grep -qw dsc.v_addr 2>/dev/null); then
+                DSC_V_ADDR=$(print $IFSN_DUMP_LINE | awk ' {print $3} ')            
+            fi    
+
+            #for all the SFIFOs we're interested in tail pointers
+            if (( (CURRENT_FIFO == SFIFO ) || ( CURRENT_FIFO == B2KSFIFO) 
+                                           || ( CURRENT_FIFO == BCSTSFIFO) )) ; then
+                if (print $IFSN_DUMP_LINE | grep -qw dsc.tail 2>/dev/null); then
+                    DSC_TAIL=$(print $IFSN_DUMP_LINE | awk ' {print $3} ')            
+                    print "Displaying tail of a send Fifo descriptor list:"
+                    kdb_print_desc_memory $DSC_V_ADDR $DSC_TAIL
+
+                    #ugly but too long to process entire ifsn_dump, so bail on last FIFO
+                    if (( CURRENT_FIFO == B2KSFIFO )); then
+                        break
+                    fi
+
+                    CURRENT_FIFO=0 # done with current fifo so clear the flag
+                fi
+            fi 
+
+            #for the all the RFIFOs we're interested in tail pointers
+            if (( (CURRENT_FIFO == RFIFO ) || (CURRENT_FIFO == B2KRFIFO) \
+                                           || (CURRENT_FIFO == BCSTRFIFO) )); then
+                if (print $IFSN_DUMP_LINE | grep -qw dsc.head 2>/dev/null); then
+                    DSC_HEAD=$(print $IFSN_DUMP_LINE | awk ' {print $3} ')            
+                    print "Displaying head of a receive Fifo descriptor list:"
+                    kdb_print_desc_memory $DSC_V_ADDR $DSC_HEAD
+
+                    CURRENT_FIFO=0 # done with current fifo so clear the flag
+                fi
+            fi
+        fi #end if check for valid CURRENT_FIFO
+
+    done
+
+    #summarize ifsn_dump
+    egrep -w "err.flag|fail_ct|ndd_ierrors|ndd_oerrors|ndd_nobufs|ndd_ipackets_drop|ndd_ibadpackets|ndd_opackets_drop" \
+          ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out | grep -v 0x00000000 >> summary.$$.$HOSTNAME.out 2>&1
+    if [[ $? -eq 0 ]]; then # if rc =0 previous egrep found a non-zero ndd drop/error counter
+        IFSN_DUMP_ERRORS_FOUND=1
+    fi
+
+    egrep -w "m_reject|sop_timeout|sop_timeout_chn|top_timeout|top_timeout_chn|bucket_reject|unAlign|unKosher" \
+          ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out | grep -v 0x00000000 >> summary.$$.$HOSTNAME.out 2>&1
+    if [[ $? -eq 0 ]]; then # if rc =0 previous egrep found a non-zero dbg drop/error counter
+        IFSN_DUMP_ERRORS_FOUND=1
+    fi
+
+    egrep -w "bogus_recvintrtype|toomanyAPs|bogus_pkt|error|kproc_error" ifsn_dump_sn${ADAPTER}.$$.$HOSTNAME.out | \
+          grep -v "error=" | grep -v 0x00000000 >> summary.$$.$HOSTNAME.out 2>&1
+    if [[ $? -eq 0 ]]; then # if rc =0 previous egrep found a non-zero dbg drop/error counter
+        IFSN_DUMP_ERRORS_FOUND=1
+    fi
+     
+    if [[ -n $IFSN_DUMP_ERRORS_FOUND ]]; then
+        print "found non-zero ifsn_dump error/drop statistic for sn$ADAPTER interface\n" >> summary.$$.$HOSTNAME.out 2>&1
+    fi
+}
+
+function get_netstat_data
+{
+    for netstat_flag in  D s in m rn ; do
+        date                              >> netstat.$$.$HOSTNAME.out 2>&1
+        print "\nnetstat -$netstat_flag"  >> netstat.$$.$HOSTNAME.out 2>&1
+        netstat -$netstat_flag            >> netstat.$$.$HOSTNAME.out 2>&1
+    done
+}
+
+function start_iptrace
+{
+    if (( num_adapters == 1 )); then
+        startsrc -s iptrace -a '-P icmp -i sn${adapter_array[0]} -o iptrace.$$.bin'
+    else
+        startsrc -s iptrace -a '-P icmp -o iptrace.$$.bin'
+    fi
+}
+    
+function get_arp_table
+{
+    date                               >> arp.$$.$HOSTNAME.out 2>&1
+    print "\narp -an | grep [sn]"      >> arp.$$.$HOSTNAME.out 2>&1
+    /usr/sbin/arp -an | grep '\[sn\]'  >> arp.$$.$HOSTNAME.out 2>&1
+}
+
+function get_sni_snap
+{
+    ADAPTER=$1
+    /usr/sni/sni.snap -l sni${ADAPTER}
+    #jjl - should we mv the snap to our current working dir?
+}
+
+function summarize_data
+{
+    integer IDROPS
+    integer ODROPS
+
+    if (grep incomplete arp.$$.$HOSTNAME.out >> summary.$$.$HOSTNAME.out 2>&1 ); then
+        print "found above incomplete sn arp entries\n" >> summary.$$.$HOSTNAME.out 2>&1
+    fi
+
+    if (grep sn.: ifconfig.$$.$HOSTNAME.out | grep -v RUNNING >> summary.$$.$HOSTNAME.out 2>&1); then
+        print "found above sn interfaces that do NOT have the RUNNING flag\n" >> summary.$$.$HOSTNAME.out 2>&1
+    fi
+   
+    #summarize netstat
+    grep sn_if netstat.$$.$HOSTNAME.out |
+    while read NETSTAT_SN_IF_LINE ; do
+        IDROPS=$(print $NETSTAT_SN_IF_LINE | awk ' {print $4 } ' )
+        ODROPS=$(print $NETSTAT_SN_IF_LINE | awk ' {print $5 } ' )
+        if (( IDROPS || ODROPS )); then
+           print $NETSTAT_SN_IF_LINE >> summary.$$.$HOSTNAME.out 2>&1
+           FOUND_NETSTAT_D_DROPS=1
+        fi
+    done
+    if [[ -n $FOUND_NETSTAT_D_DROPS ]]; then
+        print "found non-zero netstat -D drop count(s) for sn interface\n" >> summary.$$.$HOSTNAME.out 2>&1
+    fi
+}
+    
+function dump_path_data
+#(from Carl B.)
+{
+    adapters=$(lsdev -C -c adapter | grep '^sni' | grep Available | awk '{print $1}')
+    [[ -z "$adapters" ]] && echo no Federation adapters found 1>&2 && exit 1
+
+    for sni in ${adapters}; do
+
+        echo "-----------------------------------------------------------"
+        echo $sni
+        echo `date`
+        echo "-----------------------------------------------------------"
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c4020 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM5STAT: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c8020 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM6STAT: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c4030 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM5PERF: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c8030 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM6PERF: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c7000 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM5LEM : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000cb000 -d 1 | awk '{print $2 " " $3}')
+        echo "FTM6LEM : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x000c3000 -d 1 | awk '{print $2 " " $3}')
+        echo "FEMLEM  : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x0002f040 -d 1 | awk '{print $2 " " $3}')
+        echo "MACLEM  : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00023020 -d 1 | awk '{print $2 " " $3}')
+        echo "MAC0STAT: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00023050 -d 1 | awk '{print $2 " " $3}')
+        echo "MAC1STAT: $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x0002b000 -d 1 | awk '{print $2 " " $3}')
+        echo "PHYS_ID : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00028840 -d 1 | awk '{print $2 " " $3}')
+        echo "BCAST 0 : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00028850 -d 1 | awk '{print $2 " " $3}')
+        echo "BCAST 1 : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00028860 -d 1 | awk '{print $2 " " $3}')
+        echo "BCAST 2 : $tmp"
+
+        tmp=$(/colony/CSS/fed/bin/fedread -l ${sni} -o 0x00028870 -d 1 | awk '{print $2 " " $3}')
+        echo "BCAST 3 : $tmp"
+        echo "-----------------------------------------------------------"
+        /colony/CSS/fed/bin/dump_routes_from_osi ${sni}
+
+    done
+}
+    
+
+
+#main
+export PATH=$PATH:/usr/bin:/usr/sbin
+integer num_adapters=0
+integer adapter_counter=0
+HOSTNAME=$(hostname -s)
+
+
+while getopts :l:o: AARG
+do
+ case $AARG in
+   #-l specifies one specific adapter number to collect data from
+   l)
+       L_FLAG="true"
+       SNI_NAME=$OPTARG 
+       SNI_INTERFACE=$(print $SNI_NAME | sed 's/^sni/sn/')
+       ;;
+
+   #-l specifies one specific adapter number to collect data from
+   o)
+       OUTPUT_DIR=$OPTARG 
+       if [[ ! -d $OUTPUT_DIR ]]; then
+           mkdir -p $OUTPUT_DIR
+           if [ $? -ne 0 ]; then 
+               print "Invalid directory $OUTPUT_DIR specified"
+               usage
+               exit 1
+           fi 
+       fi
+       cd $OUTPUT_DIR
+       ;;
+
+   *)
+       usage 
+       exit 1
+
+  esac
+done
+
+#get ifconfig data which we may use to build array of valid adapters
+date >> ifconfig.$$.$HOSTNAME.out 2>&1
+#validate -l used, validate sni_interface and fill in adapter_array
+if [[ -n $L_FLAG ]]; then
+    print "ifconfig $SNI_INTERFACE"
+    ifconfig $SNI_INTERFACE | tee -a ifconfig.$$.$HOSTNAME.out |
+    if [[ $? -ne 0 ]]; then
+        print "ifconfig $SNI_INTERFACE returns an error - specify valid -l flag\n"
+        usage 
+        exit 1
+    fi
+    adapter_array[0]=$(print $SNI_INTERFACE | sed 's/sn//')
+    num_adapters=1
+else # if no -l flag used, we'll fill in all valid interfaces into adapter_array
+    #get list of sni interfaces that ifconfig shows
+    ifconfig -a | grep "^sn" | awk -F ":" ' {print $1} ' | sed 's/sn//' |
+    while read sni_number ; do
+       ifconfig sn${sni_number} | tee -a ifconfig.$$.$HOSTNAME.out
+       adapter_array[$num_adapters]=$sni_number
+       num_adapters=num_adapters+1 
+    done
+fi
+
+
+get_netstat_data
+get_arp_table
+
+#loop through valid adapters and get device specific data
+adapter_counter=0
+while (( adapter_counter < num_adapters )); do
+    print "\nGetting data for sn${adapter_array[adapter_counter]}"
+
+    #get_ifsn_data will also get ifconfig output and descriptor memory from kdb
+    get_ifsn_data ${adapter_array[adapter_counter]} | tee descriptor_mem_sn${adapter_array[adapter_counter]}.$$.$HOSTNAME.out
+
+    adapter_counter=adapter_counter+1
+done
+
+summarize_data
+
+#call Carl B's script (as a function) and exec STDOUT/STDERR to new output file
+exec 1> path_data.$$.$HOSTNAME.out
+exec 2> path_data.$$.$HOSTNAME.out
+if [[ -d /colony/CSS/fed/bin ]]; then
+    dump_path_data
+fi
+#make sure we exec STDOUT and STDERR to the right streams if we call more scripts at this point
+

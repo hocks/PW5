@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+while (<>) {
+	chomp;
+	($host, $uid, $pid, $ppid, $c, $stime, $tty, $time, $cmd) =
+		split(/\s+/, $_, 9);
+
+	$host =~ s/:$//;
+	next unless ($tty eq '-');
+	$bycommand{$cmd}{$uid}{$host}++;
+}
+
+$, = "\t";
+$\ = "\n";
+
+print <<EOF;
+<table border>
+<tr>
+	<td> Host(s) </td>
+	<td> Count </td>
+	<td> Uid </td>
+	<td> Command </td>
+</tr>
+EOF
+
+foreach $cmd (sort keys %bycommand) {
+	foreach $uid (sort keys %{$bycommand{$cmd}}) {
+		@hosts = keys %{$bycommand{$cmd}{$uid}};
+		$hostcount = @hosts;
+		$hosts = join(', ', compresshosts(@hosts));
+		print "<tr $color><td valign=top>", join("</td><td valign=top>",
+			$hosts, $hostcount, $uid, $cmd), "</td></tr>";
+	}
+}
+print "</table>";
+
+sub compresshosts {
+	my (@h) = sort @_;
+
+	my $x, $h, $last, $n, $lastn, $startn, $i, @c, @n;
+
+	$last = $h[0];
+	($lastn = $last) =~ s/^ds//;
+	$startn = $lastn;
+	@c = (); @n = ();
+	$i = 0;
+	while ($i < @h) {
+		$h = $h[$i];
+		last if ($h =~ /^ds(\d+)/);
+		push(@n, $h);
+		$i = $i + 1;
+	}
+	if ($i >= @h) {
+		return @n;
+	}
+	while ($i < @h) {
+		$h = $h[$i];
+		last unless ($h =~ /^ds(\d+)/);
+		$lastn = $startn = $1;
+		while (1) {
+			$i += 1;
+			$h = $h[$i];
+			unless ($h =~ /^ds(\d+)/) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$n = $1;
+			if ($n > ($lastn + 1)) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$lastn = $n;
+		}
+	}
+	push(@n, @c);
+	@n;
+}
+
+sub hostrange {
+
+	my($a, $b) = @_;
+
+	if ($a == $b) {
+		return sprintf("ds%3.3d", $a);
+	}
+		return sprintf("ds%3.3d-%3.3d", $a, $b);
+}
+
+__END__
+ds001:      UID     PID    PPID   C    STIME    TTY  TIME CMD
+ds001:     root       1       0   0   Nov 29      -  1:27 /etc/init 
+ds001:     root  270392 1069222   0   Nov 29      - 10:11 /usr/sbin/sshd -D 
+ds001:     root  909562       1   0   Nov 29      -  0:06 /usr/lib/errdemon 
+ds001:     root 1020138 1069222   0   Nov 29      -  0:00 /usr/sbin/nrd 
+ds001:     root 1036326 1069222   0   Nov 29      -  0:08 /usr/sbin/xntpd 
+ds001:     root 1060986 1343704   0   Dec 13      - 12:52 /usr/sbin/rsct/bin/hats_nim 
+ds001:     root 1069222       1   0   Nov 29      -  0:00 /usr/sbin/srcmstr 
+ds001:     root 1085512       1   0   Nov 29      -  0:12 ./sanergyfs64 
+ds001:     root 1089568       1   0   Nov 29      - 255:53 /usr/sbin/syncd 60 

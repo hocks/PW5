@@ -1,0 +1,2 @@
+cat /usr/lpp/devices.common.IBM.sni/opt*
+cat /usr/lpp/devices.chrp.IBM.HPS/opt*

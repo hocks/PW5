@@ -1,0 +1,45 @@
+#!/bin/ksh
+#
+# to check various fed adapter parameters based on the read_regs command
+#
+# first check the ISR values
+
+#set -x
+export fedpath=/usrtools/fedtools
+
+adapternum=$(lsdev -Cc adapter |grep sni |grep Available |wc -l |sed 's/ //g')
+num=0
+while [ $num -lt $adapternum ]
+do
+isr=$($fedpath/read_regs sni$num |grep -p ISR |grep 000)
+mpavail=$($fedpath/read_regs sni$num |grep -p ISR |grep 000 |awk '{print $1}' |cut -b4)
+
+if [ $mpavail -ne 7 ]
+   then
+     echo "\n MP_Avail is not available on host $(hostname -s) adapter sni$num, the value is $isr \n"
+   fi
+
+tod=$($fedpath/read_regs sni$num |grep -p TOD |grep 000)
+todvalue=$($fedpath/read_regs sni$num |grep -p TOD |grep -v TOD |awk '{print $1}' |cut -b1)
+
+if [ $todvalue -ne 8 ]
+   then
+     echo "\n The TOD is not available on $(hostname -s) adapter sni$num, the value is $tod \n"
+   fi
+
+todmas=$($fedpath/read_regs sni$num |grep -p MASTER |grep 000 |awk '{print $1}' |cut -b1)
+
+if [ $todmas -ne 0 ]
+   then
+     echo "\n host $(hostname -s) is the tod master on sni$num\n"
+   fi
+
+todbak=$($fedpath/read_regs sni$num |grep -p BACKUP |grep 000 |awk '{print $1}' |cut -b1)
+
+if [ $todbak -ne 0 ]
+   then
+     echo "\n host $(hostname -s) is the tod backup on sni$num\n"
+   fi
+
+(( num = num + 1))
+done

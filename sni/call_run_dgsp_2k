@@ -1,0 +1,16 @@
+#!/usr/bin/ksh
+## Mounted or Local filesystem
+export BINDIR=/tmp/sni_debug
+
+## Best if on a local filesystem
+export TRACE_DIR=/tmp/dgsp_aa_multi_dsh_traces                                 
+
+## Must be a mounted filesystem that all nodes in
+export NTBL_DIR=/tmp/sni_debug/dgsp
+
+mkdir /tmp/sni_debug/test_case_ntbl_dir 2> /dev/null
+mkdir /tmp/sni_debug/dgsp 2> /dev/null
+cd /tmp/sni_debug/dgsp
+date_stamp="$(date +%m%d)_$(date +%H%M)"
+
+/tmp/sni_debug/run_dgsp_aa_multi_SNI_dsh 0 4 $WCOLL 0 2 -p0x400 2040 2040 2048 > /tmp/sni_debug/dgsp/run2K.${date_stamp}.out 2>&1

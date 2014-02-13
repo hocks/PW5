@@ -1,0 +1,144 @@
+#!/bin/ksh
+#
+# LoadLeveler Epilogue
+#
+# This epilogue script runs as any user,
+#  but has limited function when run by
+#  a user other than root or loadl
+#
+export TZ=PST8PDT
+#
+if [[ $LOADL_STEP_OWNER = diegella ]] ; then
+    (set -xv ; /bin/date ; /bin/whoami ; /bin/who am i ; /bin/id ; /bin/env | /bin/sort ; /bin/ps -ef ; /usr/local/bin/ps.longest ; df -kv ; set +xv ) | \
+        /bin/mailx -s "LoadL Epilogue $LOADL_STEP_OWNER `/bin/hostname -s`" diegella@sdsc.edu
+### /usr/lpp/mmfs/bin/mmtrace off
+fi
+#
+# This section is run as LoadL
+#
+host=`/bin/hostname -s`
+#
+LOG=/tmp/LoadL_Epilogue.${LOADL_STEP_ID}.${LOADL_STEP_OWNER}.${host}.$$
+#
+shutdown=0
+#
+# Let's not rush into anything.  Take a bit
+# to make sure processes dying have a chance
+# to die before we check.
+#
+sleep 5
+#
+# Find the LoadL_starter process
+#
+# LOADL_STEP_OWNER
+#
+if [ "$LOADL_STEP_OWNER" ] ; then
+    name=$LOADL_STEP_OWNER
+else
+#   Figure out the user's name from the user id given
+    proc=`ps -ef | grep LoadL_starter | grep -v grep`
+    name=`echo $proc | awk '{ print $1 }'`
+fi
+#
+echo "LoadL_Epilogue"                   >> $LOG 2>&1
+echo "Job  ${LOADL_STEP_ID}"            >> $LOG 2>&1
+echo "User ${LOADL_STEP_OWNER}/${name}" >> $LOG 2>&1
+echo "Host ${host}"                     >> $LOG 2>&1         
+/bin/date                               >> $LOG 2>&1
+/bin/whoami                             >> $LOG 2>&1
+/bin/who am i                           >> $LOG 2>&1
+/bin/id                                 >> $LOG 2>&1
+/bin/env                                >> $LOG 2>&1
+set                                     >> $LOG 2>&1
+alias                                   >> $LOG 2>&1
+/bin/ps -ef                             >> $LOG 2>&1
+#
+if [ -x /usr/local/bin/ps.longest ] ; then
+    /usr/local/bin/ps.longest           >> $LOG 2>&1
+fi
+#
+if [ -x /usr/local/bin/spusage ] ; then
+    echo "SPusage report:"              >> $LOG 2>&1
+    /usr/local/bin/spusage              >> $LOG 2>&1
+fi
+#
+echo "Cleaning processes:"              >> $LOG 2>&1
+#
+# Run the code that checks and cleans out runaway
+# processes that users leave around...
+# The argument -k indicates to kill suspect runaway
+# processes
+#
+if [ $host < ds012 ] ; then
+#   do not clean up on Regattas yet    
+    exit 0
+fi
+#
+clean_procs="/usr/sdsc/etc/LoadL/clean_procs"
+#
+if [ -x $clean_procs ] ; then
+    echo "$clean_procs starting"                                                >> $LOG 2>&1
+###   $clean_procs -v -k >> $LOG
+###                   -c $clean_procs_script
+#
+    $clean_procs    -k -s ~loadl/clean_safe_list                                >> $LOG 2>&1
+    status=$?
+    echo "$clean_procs complete.  Exit status $status"                          >> $LOG 2>&1
+else
+    echo "$clean_procs is NOT executable."                                      >> $LOG 2>&1
+    /bin/ls -ld $clean_procs /usr/sdsc/etc/LoadL /usr/sdsc/etc /usr/sdsc /usr / >> $LOG 2>&1
+    /bin/df -k                                                                  >> $LOG 2>&1
+    /bin/id                                                                     >> $LOG 2>&1
+    /bin/mail -s "###ERROR $clean_procs is NOT executable." prodgang@sdsc.edu   <  $LOG
+    status=0
+fi
+#
+# Save the status
+#
+# The clean_procs code sends output of a 'ps -ef' command
+# to the file /tmp/outkk.  Put this file into the log for
+# later reference if needed...
+#
+echo "Processes during clean:"                                                  >> $LOG 2>&1
+cat /tmp/outkk                                                                  >> $LOG 2>&1
+#
+# delay a bit so that the processes that were killed
+# can actually die and go away.
+#
+sleep 5
+#
+# Show the current processes
+#
+echo "" >> $LOG 2>&1
+echo "Processes after clean:" >> $LOG 2>&1
+/bin/ps -ef >> $LOG 2>&1
+#
+# Send out mail to those interested regarding
+# the status of this node
+#
+if [ $status -ne 0 ] ; then
+	SUBJ="DataStar host $host LoadL_Epilogue ($status runaway)"
+	/bin/mail -s "$SUBJ" diegella@sdsc.edu < $LOG
+else
+	SUBJ="DataStar host $host LoadL_Epilogue (clean)"
+#	/bin/mail -s "$SUBJ" diegella@sdsc.edu < $LOG
+fi
+#
+# Cleanup temporary files
+#
+if [ "$name" = "diegella" ] ; then
+    /bin/mailx -s "LoadL_Epilogue for $id" diegella < $LOG
+fi
+#
+if [ -d /work/LoadL/LoadL_Epilogue/. ] ; then
+    /bin/cp $LOG /work/LoadL/LoadL_Epilogue
+fi
+#
+rm -f $LOG
+rm -f /tmp/outkk
+#
+### if [[ $USER = uxduff ]] ; then
+###     echo "testing from $0" | mail uxduff@sdsc.edu
+### fi
+#
+exit 0

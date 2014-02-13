@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+while (<>) {
+	chomp;
+	($host, $x, $y, $mode, $links, $owner, $group, $size, $mon, $day, $time, $path, $z) = split(/\s+/, $_, 13);
+
+	$host =~ s/:$//;
+	$type = substr($mode, 0, 1);
+	$issticky = $mode =~ /t$/i;
+	next if ($type eq 'l');
+	if ($type eq 'b' or $type eq 'c') {
+		$path = $z;
+	} elsif (length $z) {
+		$path .= " $z";
+	}
+	next if (($type eq 'c') and ($path =~ m|^/dev/pts/|));
+	$bypath{$type}{$path}{$mode}{$owner}{$group}{$host}++;
+}
+
+$, = "\t";
+$\ = "\n";
+
+
+foreach $type (sort keys %bypath) {
+	$t = $type;
+	($t eq '-') and ($t = 'f');
+	open(OUT, ">writable-$t.html");
+	print OUT <<EOF;
+	<table border>
+	<tr>
+		<td> Type </td>
+		<td> Path </td>
+		<td> Mode </td>
+		<td> User </td>
+		<td> Group </td>
+		<td> Count </td>
+		<td> Hosts </td>
+	</tr>
+EOF
+	foreach $path (sort keys %{$bypath{$type}}) {
+		foreach $mode (sort keys %{$bypath{$type}{$path}}) {
+			foreach $owner
+				(sort keys %{$bypath{$type}{$path}{$mode}}) {
+				foreach $group
+					(sort keys %{$bypath{$type}{$path}{$mode}{$owner}}) {
+					@hosts = keys %{$bypath{$type}{$path}{$mode}{$owner}{$group}};
+					$hostcount = @hosts;
+					$hosts = join(', ', compresshosts(@hosts));
+					print OUT "<tr $color><td valign=top>", join("</td><td valign=top nowrap>", $type, $path, $mode, $owner, $group, $hostcount), "<td valign=top> $hosts </td></tr>";
+				}
+			}
+		}
+	}
+	print OUT "</table>";
+}
+
+sub compresshosts {
+	my (@h) = sort @_;
+
+	my $x, $h, $last, $n, $lastn, $startn, $i, @c, @n;
+
+	$last = $h[0];
+	($lastn = $last) =~ s/^ds//;
+	$startn = $lastn;
+	@c = (); @n = ();
+	$i = 0;
+	while ($i < @h) {
+		$h = $h[$i];
+		last if ($h =~ /^ds(\d+)/);
+		push(@n, $h);
+		$i = $i + 1;
+	}
+	if ($i >= @h) {
+		return @n;
+	}
+	while ($i < @h) {
+		$h = $h[$i];
+		last unless ($h =~ /^ds(\d+)/);
+		$lastn = $startn = $1;
+		while (1) {
+			$i += 1;
+			$h = $h[$i];
+			unless ($h =~ /^ds(\d+)/) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$n = $1;
+			if ($n > ($lastn + 1)) {
+				push(@c, hostrange($startn, $lastn));
+				last;
+			}
+			$lastn = $n;
+		}
+	}
+	push(@n, @c);
+	@n;
+}
+
+sub hostrange {
+
+	my($a, $b) = @_;
+
+	if ($a == $b) {
+		return sprintf("ds%3.3d", $a);
+	}
+		return sprintf("ds%3.3d-%3.3d", $a, $b);
+}
+
+
+__END__
+ds001:    32    0 lrwxrwxrwx  1 root     system         16 Mar 21  2005 /catalina -> /rmount/catalina
+ds001:     2   28 drwxrwxrwt 37 bin      bin         24576 Jan 20 02:11 /tmp
+ds001:     2   12 drwxrwxrwt 11 root     system       8192 Sep 15 13:37 /scratch
+ds001:    17    0 lrwxrwxrwx  1 bin      bin             8 Jan 27  2005 /bin -> /usr/bin
+ds001: 10010    0 crw-rw-rw-  1 root     system    14,   0 Jan 27  2005 /dev/clone
+ds001: 10011    0 crw--w--w-  1 root     system     4,   0 Jan 27  2005 /dev/console
+ds001: 11067    0 srwxrwxrwx  1 root     system          0 Nov 29 03:57 /dev/SRC
+ds001:   272    0 srwxrwxrwx  1 root     system          0 Nov 29 04:01 /dev/.SRC-unix/SRCM2ukyr
+ds001:    50    0 srwxrwxrwx  1 root     system          0 Nov 29 03:57 /dev/.SRC-unix/SRC7Vukya
+ds001:    52    0 srwxrwxrwx  1 root     system          0 Nov 29 03:57 /dev/.SRC-unix/SRCGWukyb
